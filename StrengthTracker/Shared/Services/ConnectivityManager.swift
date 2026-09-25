@@ -26,6 +26,7 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private var latestWorkoutLivePayload: String?
 
     override init() {
         super.init()
@@ -142,9 +143,16 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
     /// sends the same state immediately when the phone is reachable.
     public func publishWorkoutLiveState(_ state: WorkoutLiveState) {
         #if canImport(WatchConnectivity)
+        guard let data = try? encoder.encode(state) else { return }
+        latestWorkoutLivePayload = data.base64EncodedString()
+        flushWorkoutLiveState()
+        #endif
+    }
+
+    private func flushWorkoutLiveState() {
+        #if canImport(WatchConnectivity)
         guard WCSession.default.activationState == .activated,
-              let data = try? encoder.encode(state) else { return }
-        let payload = data.base64EncodedString()
+              let payload = latestWorkoutLivePayload else { return }
         do {
             var context = WCSession.default.applicationContext
             context["workoutLive"] = payload
@@ -327,8 +335,10 @@ private struct WorkoutReplyHandler: @unchecked Sendable {
 extension ConnectivityManager: WCSessionDelegate {
     nonisolated public func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         let reachable = session.isReachable
+        let activated = activationState == .activated
         Task { @MainActor in
             self.isReachable = reachable
+            if activated { self.flushWorkoutLiveState() }
         }
     }
 
@@ -344,6 +354,7 @@ extension ConnectivityManager: WCSessionDelegate {
         let reachable = session.isReachable
         Task { @MainActor in
             self.isReachable = reachable
+            if reachable { self.flushWorkoutLiveState() }
         }
     }
 
