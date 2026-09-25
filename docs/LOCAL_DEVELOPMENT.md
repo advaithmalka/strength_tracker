@@ -27,6 +27,11 @@ the OneRep clone are also on the external APFS volume. If either link appears
 broken, mount the sparsebundle before opening Xcode; do not let Xcode create a
 new empty directory in its place.
 
+`~/Library/Developer/Xcode/iOS DeviceSupport` links to
+`/Volumes/OneRepDev/iOSDeviceSupport`. Xcode can copy several gigabytes of
+symbols from a connected iPhone into that directory. Keep the external volume
+mounted before connecting a device in Xcode.
+
 Installed simulator runtime images are managed by macOS. The active watchOS
 runtime remains in `/System/Library/AssetsV2`, and the iOS runtime is not
 currently installed. A failed install can leave a 7.9 GB iOS image in
@@ -58,6 +63,16 @@ xcodebuild -project StrengthTracker.xcodeproj -scheme StrengthTrackerWatch \
 The iOS target embeds the Watch app. Xcode 26.6 requires iOS and watchOS platform support to offer generic build destinations, even with signing disabled. Install those simulator runtimes through Xcode Settings → Components or Apple's `xcodebuild -downloadPlatform` / `-importPlatform` commands before building. Running on the user's devices also requires Xcode signing and a paired Watch.
 
 On this Mac, Xcode 26.6 and watchOS 26.5 Simulator are installed. The iOS 26.5 Simulator runtime was removed after validation because internal storage was too low to keep both simulators available. Its complete exported backup is at `/Volumes/OneRepDev/Platforms/iphonesimulator_26.5_23F77.exportedBundle`. Both generic device builds and the iPhone simulator build completed on September 25, 2026 with signing disabled; the iPhone and Watch apps each launched separately in Simulator. The Watch manual set review and rest timer were checked in Simulator. Motion detection and live paired-device sync still need physical-device or paired-simulator validation.
+
+For a physical install, open `StrengthTracker.xcodeproj` in Xcode, sign in under
+Xcode Settings → Apple Accounts, and choose the Personal Team under Signing &
+Capabilities for the iPhone app, Watch app, and both widget targets. XcodeGen
+does not save this local team choice; choose it again after regenerating the
+project. The Personal Team cannot provision Time Sensitive Notifications, so
+OneRep uses standard rest alerts. The connected iPhone needs Developer Mode;
+the paired Watch must also be discovered and enabled for development. Xcode
+currently marks the physical iPhone destination ineligible until iOS 26.5
+platform support is installed.
 
 Restore the iOS runtime only after the Mac has at least 30–35 GB free internally for installation staging, simulator data, and swap. Attempts with about 22 GB free failed with CoreSimulator disk-space error 14. Both `xcodebuild -importPlatform` and direct `simctl runtime add` copied about 8 GB internally and ignored an external `TMPDIR` for that staging step:
 
