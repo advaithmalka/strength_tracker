@@ -37,7 +37,7 @@ struct StrengthTrackerWatchApp: App {
 
             let watchControls = container.watchWorkoutViewModel
             container.connectivityManager.onWorkoutControl = { [weak watchControls] command in
-                watchControls?.applyControl(command)
+                await watchControls?.applyControl(command)
                     ?? WorkoutLiveCommandReply(accepted: false, reason: "Watch workout unavailable")
             }
 

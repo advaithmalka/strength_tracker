@@ -33,7 +33,7 @@ public struct WorkoutLiveState: Codable, Sendable {
 }
 
 public enum WorkoutLiveAction: String, Codable, Sendable {
-    case startSet, endSet, nextExercise, previousExercise, skipRest
+    case startSet, endSet, saveReviewedSet, nextExercise, previousExercise, skipRest
 }
 
 public struct WorkoutLiveCommand: Codable, Sendable {
@@ -41,12 +41,17 @@ public struct WorkoutLiveCommand: Codable, Sendable {
     public let sessionID: UUID
     public let expectedRevision: Int64
     public let action: WorkoutLiveAction
+    public let reviewedReps: Int?
+    public let reviewedWeightKg: Double?
 
-    public init(sessionID: UUID, expectedRevision: Int64, action: WorkoutLiveAction) {
+    public init(sessionID: UUID, expectedRevision: Int64, action: WorkoutLiveAction,
+                reviewedReps: Int? = nil, reviewedWeightKg: Double? = nil) {
         self.id = UUID()
         self.sessionID = sessionID
         self.expectedRevision = expectedRevision
         self.action = action
+        self.reviewedReps = reviewedReps
+        self.reviewedWeightKg = reviewedWeightKg
     }
 }
 

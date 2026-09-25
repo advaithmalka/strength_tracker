@@ -22,7 +22,7 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
     public var onWatchWorkoutStarted: ((Workout) -> Void)?
     public var onWatchWorkoutEnded: (() -> Void)?
     public var onWatchWorkoutState: ((WorkoutLiveState) -> Void)?
-    public var onWorkoutControl: ((WorkoutLiveCommand) -> WorkoutLiveCommandReply)?
+    public var onWorkoutControl: ((WorkoutLiveCommand) async -> WorkoutLiveCommandReply)?
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -162,14 +162,17 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
     }
 
     /// Phone controls are immediate only. They are never queued for replay.
-    public func sendWorkoutControl(state: WorkoutLiveState, action: WorkoutLiveAction) {
+    public func sendWorkoutControl(state: WorkoutLiveState, action: WorkoutLiveAction,
+                                   reviewedReps: Int? = nil, reviewedWeightKg: Double? = nil) {
         #if canImport(WatchConnectivity)
         guard WCSession.default.isReachable else {
             lastControlError = "Watch is offline. Use its controls until it reconnects."
             return
         }
         let command = WorkoutLiveCommand(sessionID: state.sessionID,
-                                         expectedRevision: state.revision, action: action)
+                                         expectedRevision: state.revision, action: action,
+                                         reviewedReps: reviewedReps,
+                                         reviewedWeightKg: reviewedWeightKg)
         guard let data = try? encoder.encode(command) else { return }
         lastControlError = nil
         WCSession.default.sendMessage(
@@ -469,7 +472,7 @@ extension ConnectivityManager: WCSessionDelegate {
             return
         }
         Task { @MainActor in
-            let reply = self.onWorkoutControl?(command)
+            let reply = await self.onWorkoutControl?(command)
                 ?? WorkoutLiveCommandReply(accepted: false, reason: "Watch control unavailable")
             let response = (try? self.encoder.encode(reply))?.base64EncodedString() ?? ""
             box.send(["payload": response])

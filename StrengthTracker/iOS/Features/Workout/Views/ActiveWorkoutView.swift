@@ -25,6 +25,8 @@ struct ActiveWorkoutView: View {
     @State private var showingRestTimer = false
     @State private var notesText = ""
     @State private var seededNotesText = ""
+    @State private var watchReviewReps = 10
+    @State private var watchReviewWeightLb = 20.0
 
     // Drag-to-reorder state, isolated so per-frame updates only invalidate the
     // ExerciseDragEffect modifiers — never this whole view's body.
@@ -72,6 +74,9 @@ struct ActiveWorkoutView: View {
                 }
             }
             .aiChatCover(aiChat, isPresented: $showAIChat)
+            .onChange(of: viewModel.watchLiveState?.revision, initial: true) { _, _ in
+                if let state = viewModel.watchLiveState { seedWatchReview(from: state) }
+            }
             .sheet(isPresented: $showingExercisePicker) {
                 ExercisePickerView(viewModel: exerciseListViewModel) { exercise in
                     viewModel.addExercise(exercise)
@@ -113,6 +118,19 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Watch Workout Banner
 
+    private func seedWatchReview(from state: WorkoutLiveState) {
+        guard state.phase == .review,
+              let workout = state.workout,
+              workout.exercises.indices.contains(state.currentExerciseIndex) else { return }
+        let nextSet = workout.exercises[state.currentExerciseIndex].sets.first { !$0.isFullyCompleted }
+        if let detected = state.detectedReps, detected > 0 {
+            watchReviewReps = detected
+        } else {
+            watchReviewReps = nextSet?.reps ?? 10
+        }
+        watchReviewWeightLb = WeightUnit.lbs.fromKg(nextSet?.weight ?? WeightUnit.lbs.toKg(20))
+    }
+
     private func watchWorkoutBanner(_ workout: Workout, state: WorkoutLiveState?) -> some View {
         ScrollView {
         VStack(spacing: 16) {
@@ -143,7 +161,7 @@ struct ActiveWorkoutView: View {
                 }
 
                 if let state {
-                    Text(state.phase == .review ? "Review reps and weight on Watch"
+                    Text(state.phase == .review ? "Review this set"
                          : state.phase == .lifting ? "Set in progress"
                          : state.phase == .resting ? "Resting" : "Ready for next set")
                         .font(.subheadline.bold())
@@ -191,6 +209,20 @@ struct ActiveWorkoutView: View {
                         Button("Start Set") { connectivityManager.sendWorkoutControl(state: state, action: .startSet) }
                     } else if state.phase == .lifting {
                         Button("End Set") { connectivityManager.sendWorkoutControl(state: state, action: .endSet) }
+                    } else if state.phase == .review {
+                        VStack(spacing: 10) {
+                            Stepper("Reps: \(watchReviewReps)", value: $watchReviewReps, in: 0...100, step: 1)
+                            Stepper("Weight: \(String(format: "%.1f", watchReviewWeightLb)) lb",
+                                    value: $watchReviewWeightLb, in: 0...1000, step: 2.5)
+                            Button("Save Set") {
+                                connectivityManager.sendWorkoutControl(
+                                    state: state, action: .saveReviewedSet,
+                                    reviewedReps: watchReviewReps,
+                                    reviewedWeightKg: WeightUnit.lbs.toKg(watchReviewWeightLb)
+                                )
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
                     } else if state.phase == .resting {
                         Button("End Rest Early") { connectivityManager.sendWorkoutControl(state: state, action: .skipRest) }
                     }

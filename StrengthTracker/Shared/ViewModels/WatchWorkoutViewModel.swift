@@ -185,7 +185,7 @@ public final class WatchWorkoutViewModel {
             if !isCollectingSet { beginSetAttempt() }
             markSetActivity(at: sample.recordedAt)
         case .activity:
-            if isCollectingSet { markSetActivity(at: sample.recordedAt) }
+            if isCollectingSet, detector == nil { markSetActivity(at: sample.recordedAt) }
         case nil:
             break
         }
@@ -273,7 +273,7 @@ public final class WatchWorkoutViewModel {
     }
 
     /// Reject commands aimed at a stale screen or a previous workout.
-    public func applyControl(_ command: WorkoutLiveCommand) -> WorkoutLiveCommandReply {
+    public func applyControl(_ command: WorkoutLiveCommand) async -> WorkoutLiveCommandReply {
         guard let workout = activeWorkout, isActive,
               workout.id == command.sessionID,
               liveRevision == command.expectedRevision else {
@@ -283,6 +283,17 @@ public final class WatchWorkoutViewModel {
         switch command.action {
         case .startSet: beginSetAttempt()
         case .endSet: endSetAttempt()
+        case .saveReviewedSet:
+            guard isReviewingSet,
+                  let reps = command.reviewedReps, (0...100).contains(reps),
+                  let weight = command.reviewedWeightKg, weight.isFinite, weight >= 0 else {
+                return WorkoutLiveCommandReply(accepted: false, reason: "Invalid set review")
+            }
+            do {
+                try await logSet(weight: weight, reps: reps, detectedReps: reviewDetectedReps)
+            } catch {
+                return WorkoutLiveCommandReply(accepted: false, reason: "Watch could not save the set")
+            }
         case .nextExercise: nextExercise()
         case .previousExercise: previousExercise()
         case .skipRest:
