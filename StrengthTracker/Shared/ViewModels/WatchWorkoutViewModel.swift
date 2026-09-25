@@ -73,7 +73,9 @@ public final class WatchWorkoutViewModel {
     private var lastSetActivityAt: Date?
     private var setAttemptStartedAt: Date?
     private var liveRevision: Int64 = 0
-    private let sessionStateKey = "oneRep.watch.activeSessionState"
+    private func sessionStateKey(for workoutID: UUID) -> String {
+        "oneRep.watch.sessionState.\(workoutID.uuidString)"
+    }
 
     private struct PersistedSessionState: Codable {
         struct ExercisePlan: Codable {
@@ -144,12 +146,12 @@ public final class WatchWorkoutViewModel {
             workoutID: workout.id, exerciseIndex: currentExerciseIndex, plans: persistedPlans
         )
         if let data = try? JSONEncoder().encode(state) {
-            UserDefaults.standard.set(data, forKey: sessionStateKey)
+            UserDefaults.standard.set(data, forKey: sessionStateKey(for: workout.id))
         }
     }
 
-    private func clearSessionState() {
-        UserDefaults.standard.removeObject(forKey: sessionStateKey)
+    private func clearSessionState(for workoutID: UUID) {
+        UserDefaults.standard.removeObject(forKey: sessionStateKey(for: workoutID))
     }
 
     public func restoreActiveWorkout() async {
@@ -159,7 +161,7 @@ public final class WatchWorkoutViewModel {
             let fallbackIndex = restored.exercises.firstIndex {
                 $0.sets.contains(where: { !$0.isFullyCompleted })
             } ?? 0
-            let storedState = UserDefaults.standard.data(forKey: sessionStateKey)
+            let storedState = UserDefaults.standard.data(forKey: sessionStateKey(for: restored.id))
                 .flatMap { try? JSONDecoder().decode(PersistedSessionState.self, from: $0) }
             if let storedState, storedState.workoutID == restored.id {
                 currentExerciseIndex = restored.exercises.indices.contains(storedState.exerciseIndex)
@@ -815,7 +817,7 @@ public final class WatchWorkoutViewModel {
 
         activeWorkout = saved
         publishLiveState(ended: true)
-        clearSessionState()
+        clearSessionState(for: saved.id)
 
         // Notify iPhone workout ended, then send full workout via transferUserInfo
         connectivityManager.sendWorkoutEnded()
@@ -857,13 +859,13 @@ public final class WatchWorkoutViewModel {
 
         if let workout = activeWorkout {
             try? await workoutRepository.delete(workout)
+            clearSessionState(for: workout.id)
         }
 
         publishLiveState(ended: true)
         activeWorkout = nil
         currentExerciseIndex = 0
         workoutNotes = ""
-        clearSessionState()
 
         connectivityManager.sendWorkoutEnded()
         plannedSessionId = nil
