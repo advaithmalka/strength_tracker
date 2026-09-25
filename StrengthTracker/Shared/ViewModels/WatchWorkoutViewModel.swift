@@ -73,6 +73,19 @@ public final class WatchWorkoutViewModel {
     private var lastSetActivityAt: Date?
     private var setAttemptStartedAt: Date?
     private var liveRevision: Int64 = 0
+    private let sessionStateKey = "oneRep.watch.activeSessionState"
+
+    private struct PersistedSessionState: Codable {
+        struct ExercisePlan: Codable {
+            let sets: Int
+            let weight: Double?
+            let reps: Int?
+        }
+
+        let workoutID: UUID
+        let exerciseIndex: Int
+        let plans: [Int: ExercisePlan]
+    }
 
     // Watch workout session manager (nil on iOS)
     private var watchSessionManager: (any WatchWorkoutSessionManager)?
@@ -118,20 +131,58 @@ public final class WatchWorkoutViewModel {
         _ = try await workoutRepository.save(workout)
     }
 
+    private func saveSessionState() {
+        guard let workout = activeWorkout else { return }
+        let persistedPlans = Dictionary(uniqueKeysWithValues: plannedSetsPerExercise.map { index, sets in
+            (index, PersistedSessionState.ExercisePlan(
+                sets: sets,
+                weight: targetWeightPerExercise[index] ?? nil,
+                reps: targetRepsPerExercise[index] ?? nil
+            ))
+        })
+        let state = PersistedSessionState(
+            workoutID: workout.id, exerciseIndex: currentExerciseIndex, plans: persistedPlans
+        )
+        if let data = try? JSONEncoder().encode(state) {
+            UserDefaults.standard.set(data, forKey: sessionStateKey)
+        }
+    }
+
+    private func clearSessionState() {
+        UserDefaults.standard.removeObject(forKey: sessionStateKey)
+    }
+
     public func restoreActiveWorkout() async {
         guard activeWorkout == nil else { return }
         do {
             guard var restored = try await workoutRepository.fetchActive() else { return }
-            currentExerciseIndex = restored.exercises.firstIndex {
+            let fallbackIndex = restored.exercises.firstIndex {
                 $0.sets.contains(where: { !$0.isFullyCompleted })
             } ?? 0
+            let storedState = UserDefaults.standard.data(forKey: sessionStateKey)
+                .flatMap { try? JSONDecoder().decode(PersistedSessionState.self, from: $0) }
+            if let storedState, storedState.workoutID == restored.id {
+                currentExerciseIndex = restored.exercises.indices.contains(storedState.exerciseIndex)
+                    ? storedState.exerciseIndex : fallbackIndex
+                plannedSetsPerExercise = storedState.plans.mapValues(\.sets)
+                targetWeightPerExercise = storedState.plans.mapValues(\.weight)
+                targetRepsPerExercise = storedState.plans.mapValues(\.reps)
+            } else {
+                currentExerciseIndex = fallbackIndex
+                if restored.templateId != nil {
+                    for (index, exercise) in restored.exercises.enumerated() {
+                        plannedSetsPerExercise[index] = exercise.sets.count
+                        targetWeightPerExercise[index] = exercise.sets.last?.weight
+                        targetRepsPerExercise[index] = exercise.sets.last?.reps
+                    }
+                }
+            }
             if let rest = WidgetDataService().readWatchRestTimerState() {
                 if rest.workoutID == restored.id,
                    let setID = rest.setID,
                    let exerciseIndex = restored.exercises.firstIndex(where: { exercise in
                        exercise.sets.contains(where: { $0.id == setID })
                    }) {
-                    currentExerciseIndex = exerciseIndex
                     if rest.endDate > Date() {
                         restStartDate = rest.startDate
                         restSetID = setID
@@ -152,6 +203,7 @@ public final class WatchWorkoutViewModel {
             activeWorkout = restored
             isQuickStart = restored.templateId == nil
             isActive = true
+            saveSessionState()
             configureMotionForCurrentExercise()
             connectivityManager.sendWorkoutSnapshot(restored)
             publishLiveState()
@@ -455,6 +507,7 @@ public final class WatchWorkoutViewModel {
         activeWorkout = workout
         currentExerciseIndex = 0
         isActive = true
+        saveSessionState()
         configureMotionForCurrentExercise()
         publishLiveState()
     }
@@ -488,6 +541,9 @@ public final class WatchWorkoutViewModel {
         catch { return }
         let template = template.resolvingBodyweight(from: library)
         isQuickStart = false
+        plannedSetsPerExercise = [:]
+        targetWeightPerExercise = [:]
+        targetRepsPerExercise = [:]
 
         let workoutExercises = template.exercises.sorted { $0.order < $1.order }.enumerated().map { index, te in
             let sets = (0..<te.targetSets).map { setIndex in
@@ -545,6 +601,7 @@ public final class WatchWorkoutViewModel {
         activeWorkout = workout
         currentExerciseIndex = 0
         isActive = true
+        saveSessionState()
         configureMotionForCurrentExercise()
         publishLiveState()
 
@@ -758,6 +815,7 @@ public final class WatchWorkoutViewModel {
 
         activeWorkout = saved
         publishLiveState(ended: true)
+        clearSessionState()
 
         // Notify iPhone workout ended, then send full workout via transferUserInfo
         connectivityManager.sendWorkoutEnded()
@@ -805,6 +863,7 @@ public final class WatchWorkoutViewModel {
         activeWorkout = nil
         currentExerciseIndex = 0
         workoutNotes = ""
+        clearSessionState()
 
         connectivityManager.sendWorkoutEnded()
         plannedSessionId = nil
@@ -819,6 +878,7 @@ public final class WatchWorkoutViewModel {
             viewingSetIndex = nil
             pendingSetType = .normal
             currentExerciseIndex += 1
+            saveSessionState()
             configureMotionForCurrentExercise()
             publishLiveState()
         }
@@ -829,6 +889,7 @@ public final class WatchWorkoutViewModel {
             viewingSetIndex = nil
             pendingSetType = .normal
             currentExerciseIndex -= 1
+            saveSessionState()
             configureMotionForCurrentExercise()
             publishLiveState()
         }

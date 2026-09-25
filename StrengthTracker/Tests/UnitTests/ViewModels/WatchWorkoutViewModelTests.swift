@@ -126,6 +126,28 @@ struct WatchWorkoutViewModelTests {
         #expect(vm.currentExerciseIndex == 0)
     }
 
+    @Test("Restart restores selected exercise and planned sets")
+    func restoreSelectedExercise() async {
+        let (vm, repo) = makeViewModel()
+        await vm.startWorkout(name: "Push", from: makeTemplateFrom([
+            makeExercise(name: "Incline Press"), makeExercise(name: "Lateral Raise")
+        ]))
+        vm.nextExercise()
+
+        let restored = WatchWorkoutViewModel(
+            workoutRepository: repo,
+            healthKitService: NoOpHealthKitService(),
+            connectivityManager: ConnectivityManager()
+        )
+        await restored.restoreActiveWorkout()
+
+        #expect(restored.currentExerciseIndex == 1)
+        #expect(restored.hasPlannedSets)
+        #expect(restored.plannedSets == 3)
+        #expect(restored.currentExercise?.exercise.name == "Lateral Raise")
+        await restored.cancelWorkout()
+    }
+
     // MARK: - completeWorkout
 
     @Test("completeWorkout marks complete and saves")
