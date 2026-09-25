@@ -235,7 +235,7 @@ struct WatchActiveWorkoutView: View {
             Text(chipLabel(for: set))
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(chipLabelColor(for: set))
-            Text("\(Int(set.weight ?? 0))x\(set.reps ?? 0)")
+            Text("\(weightUnit.formatValue(set.weight ?? 0))×\(set.reps ?? 0)")
                 .font(.system(size: 10, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.white)
