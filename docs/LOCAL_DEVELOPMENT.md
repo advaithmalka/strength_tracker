@@ -20,7 +20,8 @@ Keep the Samsung drive attached while using Xcode or Simulator. On this Mac,
 `~/Library/Developer/CoreSimulator/Devices` links to
 `/Volumes/OneRepDev/SimulatorDevices`, and
 `~/Library/Developer/Xcode/DerivedData` links to
-`/Volumes/OneRepDev/DerivedData`. The Watch simulator booted successfully with
+`/Volumes/OneRepDev/DerivedData`. `~/Applications/Xcode.app` links to the
+external Xcode app. The Watch simulator booted successfully with
 its app container resolving through the external device link. Xcode itself and
 the OneRep clone are also on the external APFS volume. If either link appears
 broken, mount the sparsebundle before opening Xcode; do not let Xcode create a
