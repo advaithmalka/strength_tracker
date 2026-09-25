@@ -142,6 +142,7 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
     public var isCompleted: Bool
     public var isPersonalRecord: Bool
     public var isFailure: Bool
+    public var startedAt: Date?
     public var completedAt: Date?
     /// nil is the ordinary compact row. Values contain each side's actual load,
     /// reps, effort and completion; the parent is a compatibility summary only.
@@ -306,7 +307,8 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
         sideSets: [SideSetEntry]? = nil,
         detectedReps: Int? = nil,
         restDurationSeconds: Double? = nil,
-        restEndedAt: Date? = nil
+        restEndedAt: Date? = nil,
+        startedAt: Date? = nil
     ) {
         self.id = id
         self.order = order
@@ -316,6 +318,7 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
         self.detectedReps = detectedReps
         self.restDurationSeconds = restDurationSeconds
         self.restEndedAt = restEndedAt
+        self.startedAt = startedAt
         self.durationSeconds = durationSeconds
         self.distanceMeters = distanceMeters
         self.rpe = rpe
@@ -331,7 +334,7 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
 
     private enum CodingKeys: String, CodingKey {
         case id, order, setType, weight, reps, durationSeconds, distanceMeters
-        case rpe, rir, isCompleted, isPersonalRecord, isFailure, completedAt, dropSets, sideSets
+        case rpe, rir, isCompleted, isPersonalRecord, isFailure, startedAt, completedAt, dropSets, sideSets
         case detectedReps, restDurationSeconds, restEndedAt
     }
 
@@ -348,6 +351,7 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
         detectedReps = try container.decodeIfPresent(Int.self, forKey: .detectedReps)
         restDurationSeconds = try container.decodeIfPresent(Double.self, forKey: .restDurationSeconds)
         restEndedAt = try container.decodeIfPresent(Date.self, forKey: .restEndedAt)
+        startedAt = try container.decodeIfPresent(Date.self, forKey: .startedAt)
         durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
         distanceMeters = try container.decodeIfPresent(Double.self, forKey: .distanceMeters)
         rpe = try container.decodeIfPresent(Double.self, forKey: .rpe)

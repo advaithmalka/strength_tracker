@@ -10,6 +10,7 @@ import WatchConnectivity
 public final class ConnectivityManager: NSObject, @unchecked Sendable {
     public var isReachable: Bool = false
     public var lastSyncDate: Date?
+    public var lastControlError: String?
 
     // Callbacks for received data
     public var onExercisesReceived: (([Exercise]) -> Void)?
@@ -20,6 +21,8 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
     public var onWatchWorkoutSnapshot: ((Workout) -> Void)?
     public var onWatchWorkoutStarted: ((Workout) -> Void)?
     public var onWatchWorkoutEnded: (() -> Void)?
+    public var onWatchWorkoutState: ((WorkoutLiveState) -> Void)?
+    public var onWorkoutControl: ((WorkoutLiveCommand) -> WorkoutLiveCommandReply)?
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -135,6 +138,56 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
         #endif
     }
 
+    /// Watch publishes the latest complete state for offline catch-up, and
+    /// sends the same state immediately when the phone is reachable.
+    public func publishWorkoutLiveState(_ state: WorkoutLiveState) {
+        #if canImport(WatchConnectivity)
+        guard WCSession.default.activationState == .activated,
+              let data = try? encoder.encode(state) else { return }
+        let payload = data.base64EncodedString()
+        do {
+            var context = WCSession.default.applicationContext
+            context["workoutLive"] = payload
+            try WCSession.default.updateApplicationContext(context)
+        } catch {
+            print("ConnectivityManager: Live context failed - \(error)")
+        }
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(["type": "workoutLive", "payload": payload],
+                                          replyHandler: nil) { error in
+                print("ConnectivityManager: Live message failed - \(error)")
+            }
+        }
+        #endif
+    }
+
+    /// Phone controls are immediate only. They are never queued for replay.
+    public func sendWorkoutControl(state: WorkoutLiveState, action: WorkoutLiveAction) {
+        #if canImport(WatchConnectivity)
+        guard WCSession.default.isReachable else {
+            lastControlError = "Watch is offline. Use its controls until it reconnects."
+            return
+        }
+        let command = WorkoutLiveCommand(sessionID: state.sessionID,
+                                         expectedRevision: state.revision, action: action)
+        guard let data = try? encoder.encode(command) else { return }
+        lastControlError = nil
+        WCSession.default.sendMessage(
+            ["type": "workoutControl", "payload": data.base64EncodedString()],
+            replyHandler: { [weak self] message in
+                guard let encoded = message["payload"] as? String,
+                      let replyData = Data(base64Encoded: encoded),
+                      let reply = try? JSONDecoder().decode(WorkoutLiveCommandReply.self, from: replyData) else { return }
+                Task { @MainActor in self?.lastControlError = reply.reason }
+            },
+            errorHandler: { [weak self] error in
+                let message = error.localizedDescription
+                Task { @MainActor in self?.lastControlError = message }
+            }
+        )
+        #endif
+    }
+
     /// Notify iPhone that a Watch workout has started
     public func sendWorkoutStarted(_ workout: Workout) {
         #if canImport(WatchConnectivity)
@@ -211,6 +264,8 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
             plannedSessionData = Data(base64Encoded: payloadStr)
         }
 
+        let liveData = (applicationContext["workoutLive"] as? String).flatMap { Data(base64Encoded: $0) }
+
         Task { @MainActor in
             self.lastSyncDate = Date()
 
@@ -233,6 +288,12 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
                let sessions = try? decoder.decode([PlannedSessionSync].self, from: data) {
                 self.onPlannedSessionsReceived?(sessions)
             }
+
+            if let data = liveData,
+               let state = try? decoder.decode(WorkoutLiveState.self, from: data),
+               state.schemaVersion == 1 {
+                self.onWatchWorkoutState?(state)
+            }
         }
     }
 
@@ -251,6 +312,12 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
         #endif
     }
 }
+
+#if canImport(WatchConnectivity)
+private struct WorkoutReplyHandler: @unchecked Sendable {
+    let send: ([String: Any]) -> Void
+}
+#endif
 
 // MARK: - WCSessionDelegate
 #if canImport(WatchConnectivity)
@@ -305,6 +372,8 @@ extension ConnectivityManager: WCSessionDelegate {
             plannedSessionData = Data(base64Encoded: payloadStr)
         }
 
+        let liveData = (applicationContext["workoutLive"] as? String).flatMap { Data(base64Encoded: $0) }
+
         Task { @MainActor in
             self.lastSyncDate = Date()
 
@@ -326,6 +395,12 @@ extension ConnectivityManager: WCSessionDelegate {
             if let data = plannedSessionData,
                let sessions = try? decoder.decode([PlannedSessionSync].self, from: data) {
                 self.onPlannedSessionsReceived?(sessions)
+            }
+
+            if let data = liveData,
+               let state = try? decoder.decode(WorkoutLiveState.self, from: data),
+               state.schemaVersion == 1 {
+                self.onWatchWorkoutState?(state)
             }
         }
     }
@@ -358,9 +433,11 @@ extension ConnectivityManager: WCSessionDelegate {
         let decoder = JSONDecoder()
 
         var workout: Workout?
+        var liveState: WorkoutLiveState?
         if let payloadStr = message["payload"] as? String,
            let data = Data(base64Encoded: payloadStr) {
             workout = try? decoder.decode(Workout.self, from: data)
+            liveState = try? decoder.decode(WorkoutLiveState.self, from: data)
         }
 
         Task { @MainActor in
@@ -373,9 +450,29 @@ extension ConnectivityManager: WCSessionDelegate {
                 if let workout { self.onWatchWorkoutStarted?(workout) }
             case "workoutEnded":
                 self.onWatchWorkoutEnded?()
+            case "workoutLive":
+                if let liveState, liveState.schemaVersion == 1 { self.onWatchWorkoutState?(liveState) }
             default:
                 break
             }
+        }
+    }
+
+    nonisolated public func session(_ session: WCSession, didReceiveMessage message: [String: Any],
+                                    replyHandler: @escaping ([String: Any]) -> Void) {
+        let box = WorkoutReplyHandler(send: replyHandler)
+        guard message["type"] as? String == "workoutControl",
+              let encoded = message["payload"] as? String,
+              let data = Data(base64Encoded: encoded),
+              let command = try? JSONDecoder().decode(WorkoutLiveCommand.self, from: data) else {
+            box.send(["payload": ""])
+            return
+        }
+        Task { @MainActor in
+            let reply = self.onWorkoutControl?(command)
+                ?? WorkoutLiveCommandReply(accepted: false, reason: "Watch control unavailable")
+            let response = (try? self.encoder.encode(reply))?.base64EncodedString() ?? ""
+            box.send(["payload": response])
         }
     }
 }

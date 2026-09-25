@@ -59,6 +59,7 @@ public final class WorkoutViewModel {
     public var lastPR: PersonalRecord? = nil
     public var previousSetDataCache: [String: String] = [:]
     public var watchActiveWorkout: Workout? = nil
+    public var watchLiveState: WorkoutLiveState? = nil
     public var postWorkoutDebrief: PostWorkoutDebrief? = nil
     public var showPostWorkoutSummary = false
     public var exerciseCoachingCache: [UUID: ExerciseCoachingData] = [:]

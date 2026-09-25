@@ -115,6 +115,7 @@ struct ContentView: View {
                 exerciseListViewModel: exerciseListViewModel,
                 restTimerService: restTimerService,
                 analyticsViewModel: analyticsViewModel,
+                connectivityManager: connectivityManager,
                 aiChat: nil
             )
             .tint(STColors.textSecondary)

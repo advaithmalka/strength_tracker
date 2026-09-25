@@ -102,13 +102,24 @@ struct StrengthTrackeriOSApp: App {
 
             // Wire up live Watch workout mirror (Fix 6)
             let workoutVM = container.workoutViewModel
+            container.connectivityManager.onWatchWorkoutState = { state in
+                Task { @MainActor in
+                    if let previous = workoutVM.watchLiveState,
+                       previous.sessionID == state.sessionID,
+                       previous.revision >= state.revision { return }
+                    workoutVM.watchLiveState = state
+                    workoutVM.watchActiveWorkout = state.workout
+                }
+            }
             container.connectivityManager.onWatchWorkoutSnapshot = { workout in
                 Task { @MainActor in
+                    if workoutVM.watchLiveState?.sessionID == workout.id { return }
                     workoutVM.watchActiveWorkout = workout
                 }
             }
             container.connectivityManager.onWatchWorkoutStarted = { workout in
                 Task { @MainActor in
+                    if workoutVM.watchLiveState?.sessionID == workout.id { return }
                     workoutVM.watchActiveWorkout = workout
                 }
             }
@@ -117,6 +128,13 @@ struct StrengthTrackeriOSApp: App {
                     workoutVM.watchActiveWorkout = nil
                 }
             }
+
+            #if canImport(WatchConnectivity)
+            if WCSession.isSupported() {
+                let context = WCSession.default.receivedApplicationContext
+                if !context.isEmpty { container.connectivityManager.processReceivedContext(context) }
+            }
+            #endif
 
             // Clean up any orphaned Live Activities from previous launches
             container.restTimerService.endAllStaleActivities()

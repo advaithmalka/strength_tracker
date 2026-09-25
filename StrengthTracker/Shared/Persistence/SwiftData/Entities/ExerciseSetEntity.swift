@@ -21,6 +21,7 @@ public final class ExerciseSetEntity {
     // Inline default (not just an init default) so SwiftData lightweight migration
     // can backfill existing rows.
     public var isFailure: Bool = false
+    public var startedAt: Date? = nil
     public var completedAt: Date?
     /// JSON-encoded [DropSetEntry]; nil when the set has no drop segments.
     public var dropSetsJSON: String?

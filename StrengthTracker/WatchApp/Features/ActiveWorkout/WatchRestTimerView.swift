@@ -49,6 +49,10 @@ struct WatchRestTimerView: View {
                 }
             }
 
+            ProgressView(value: viewModel.restProgress)
+                .tint(primaryYellow)
+                .accessibilityLabel("Rest progress")
+
             Spacer()
 
             // Skip button

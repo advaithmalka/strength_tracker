@@ -207,7 +207,8 @@ public enum ExerciseSetMapper {
             sideSets: entity.sideSetsJSON.flatMap { try? JSONDecoder().decode([SideSetEntry].self, from: Data($0.utf8)) },
             detectedReps: entity.detectedReps,
             restDurationSeconds: entity.restDurationSeconds,
-            restEndedAt: entity.restEndedAt
+            restEndedAt: entity.restEndedAt,
+            startedAt: entity.startedAt
         )
     }
 
@@ -233,6 +234,7 @@ public enum ExerciseSetMapper {
         entity.detectedReps = domain.detectedReps
         entity.restDurationSeconds = domain.restDurationSeconds
         entity.restEndedAt = domain.restEndedAt
+        entity.startedAt = domain.startedAt
         return entity
     }
 
@@ -255,6 +257,7 @@ public enum ExerciseSetMapper {
         entity.detectedReps = domain.detectedReps
         entity.restDurationSeconds = domain.restDurationSeconds
         entity.restEndedAt = domain.restEndedAt
+        entity.startedAt = domain.startedAt
     }
 
     private static func encodeDropSets(_ entries: [DropSetEntry]) -> String? {

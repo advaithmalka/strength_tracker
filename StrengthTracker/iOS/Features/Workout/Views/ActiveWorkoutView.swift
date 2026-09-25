@@ -10,6 +10,7 @@ struct ActiveWorkoutView: View {
     /// start/finish/cancel lifecycle, shared with the AI tools.
     let coordinator: WorkoutSessionCoordinator
     let restTimerService: RestTimerService
+    let connectivityManager: ConnectivityManager?
     var analyticsViewModel: WorkoutAnalyticsViewModel?
     /// Assistant entry point; nil when the AI feature is not configured.
     var aiChat: AIChatEntry? = nil
@@ -35,12 +36,14 @@ struct ActiveWorkoutView: View {
         exerciseListViewModel: ExerciseListViewModel,
         restTimerService: RestTimerService,
         analyticsViewModel: WorkoutAnalyticsViewModel? = nil,
+        connectivityManager: ConnectivityManager? = nil,
         aiChat: AIChatEntry? = nil
     ) {
         self._viewModel = State(initialValue: viewModel)
         self._exerciseListViewModel = State(initialValue: exerciseListViewModel)
         self.coordinator = coordinator
         self.restTimerService = restTimerService
+        self.connectivityManager = connectivityManager
         self.aiChat = aiChat
         self.analyticsViewModel = analyticsViewModel
     }
@@ -50,8 +53,10 @@ struct ActiveWorkoutView: View {
             Group {
                 if let workout = viewModel.currentWorkout, viewModel.isActive {
                     workoutContent(workout)
+                } else if let state = viewModel.watchLiveState, let watchWorkout = state.workout {
+                    watchWorkoutBanner(watchWorkout, state: state)
                 } else if let watchWorkout = viewModel.watchActiveWorkout {
-                    watchWorkoutBanner(watchWorkout)
+                    watchWorkoutBanner(watchWorkout, state: nil)
                 } else {
                     startView
                 }
@@ -108,7 +113,8 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Watch Workout Banner
 
-    private func watchWorkoutBanner(_ workout: Workout) -> some View {
+    private func watchWorkoutBanner(_ workout: Workout, state: WorkoutLiveState?) -> some View {
+        ScrollView {
         VStack(spacing: 16) {
             Image(systemName: "applewatch")
                 .font(.system(size: 48))
@@ -123,10 +129,29 @@ struct ActiveWorkoutView: View {
                     .font(.title3.bold())
                     .foregroundStyle(STColors.textPrimary)
 
-                if let currentExercise = workout.activeExercise(preferredId: nil) {
+                if let currentExercise = state.flatMap({ workout.exercises.indices.contains($0.currentExerciseIndex)
+                    ? workout.exercises[$0.currentExerciseIndex] : nil }) ?? workout.activeExercise(preferredId: nil) {
                     Text(currentExercise.exercise.name)
                         .font(.subheadline)
                         .foregroundStyle(STColors.textSecondary)
+
+                    ForEach(currentExercise.sets.filter(\.isFullyCompleted)) { set in
+                        Text("Set \(set.order): \(set.reps ?? 0) reps · \((viewModel.userPreferencesService?.weightUnit ?? .lbs).format(set.weight ?? 0, decimals: 1))")
+                            .font(.caption)
+                            .foregroundStyle(STColors.textSecondary)
+                    }
+                }
+
+                if let state {
+                    Text(state.phase == .review ? "Review reps and weight on Watch"
+                         : state.phase == .lifting ? "Set in progress"
+                         : state.phase == .resting ? "Resting" : "Ready for next set")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(STColors.primary)
+                    if let end = state.restEndsAt, end > Date() {
+                        Text(timerInterval: Date()...end, countsDown: true)
+                            .font(.title3.monospacedDigit())
+                    }
                 }
 
                 let totalSets = workout.exercises.reduce(0) { $0 + $1.sets.filter(\.isFullyCompleted).count }
@@ -148,10 +173,34 @@ struct ActiveWorkoutView: View {
                 RoundedRectangle(cornerRadius: STRadius.card)
                     .stroke(STColors.border, lineWidth: 1)
             )
+
+            if let state, let connectivityManager {
+                Text(connectivityManager.isReachable ? "Watch connected" : "Watch offline · updates will sync later")
+                    .font(.caption)
+                    .foregroundStyle(STColors.textSecondary)
+                if let error = connectivityManager.lastControlError {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+                if connectivityManager.isReachable {
+                    HStack {
+                        Button("Previous") { connectivityManager.sendWorkoutControl(state: state, action: .previousExercise) }
+                        Button("Next") { connectivityManager.sendWorkoutControl(state: state, action: .nextExercise) }
+                    }
+                    .disabled(state.phase == .lifting || state.phase == .review)
+                    if state.phase == .ready {
+                        Button("Start Set") { connectivityManager.sendWorkoutControl(state: state, action: .startSet) }
+                    } else if state.phase == .lifting {
+                        Button("End Set") { connectivityManager.sendWorkoutControl(state: state, action: .endSet) }
+                    } else if state.phase == .resting {
+                        Button("End Rest Early") { connectivityManager.sendWorkoutControl(state: state, action: .skipRest) }
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .background(STColors.background)
+        }
     }
 
     // MARK: - Start View

@@ -35,6 +35,12 @@ struct StrengthTrackerWatchApp: App {
             }
             #endif
 
+            let watchControls = container.watchWorkoutViewModel
+            container.connectivityManager.onWorkoutControl = { [weak watchControls] command in
+                watchControls?.applyControl(command)
+                    ?? WorkoutLiveCommandReply(accepted: false, reason: "Watch workout unavailable")
+            }
+
             // Seed exercises on Watch (same as iOS)
             container.exerciseSeeder.startSeeding()
 
