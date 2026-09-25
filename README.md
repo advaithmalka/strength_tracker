@@ -1,3 +1,7 @@
+# OneRep development fork
+
+This fork builds OneRep, an iPhone and Apple Watch strength logger, from the MIT-licensed `strength_tracker` project. See the [OneRep MVP](docs/ONE_REP_MVP.md) and [local development setup](docs/LOCAL_DEVELOPMENT.md) for the current scope and build instructions. The upstream documentation below describes features of the base app; some are hidden or changed for OneRep V1.
+
 # HellBentIron
 
 A no-nonsense strength training tracker for iPhone and Apple Watch. Built with SwiftUI and SwiftData.
@@ -484,4 +488,4 @@ xcodebuild test -project StrengthTracker.xcodeproj \
 
 ## License
 
-Private project.
+MIT. See [LICENSE](LICENSE).
