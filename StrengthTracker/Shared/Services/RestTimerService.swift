@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 #if canImport(ActivityKit)
-import ActivityKit
+@preconcurrency import ActivityKit
 #endif
 
 #if canImport(UIKit)
@@ -288,15 +288,8 @@ public final class RestTimerService {
         #if canImport(ActivityKit)
         guard let activity = currentActivity else { return }
 
-        let now = Date()
-        let finalState = RestTimerAttributes.ContentState(
-            timerRange: now...now,
-            totalSeconds: totalSeconds,
-            isRunning: false
-        )
-
         Task {
-            await activity.end(.init(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
         currentActivity = nil
         #endif
@@ -308,14 +301,8 @@ public final class RestTimerService {
         for activity in Activity<RestTimerAttributes>.activities {
             // Skip the activity belonging to the currently running timer
             if activity.id == currentActivity?.id { continue }
-            let now = Date()
-            let finalState = RestTimerAttributes.ContentState(
-                timerRange: now...now,
-                totalSeconds: 0,
-                isRunning: false
-            )
             Task {
-                await activity.end(.init(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
+                await activity.end(nil, dismissalPolicy: .immediate)
             }
         }
         #endif
