@@ -41,7 +41,6 @@ targets:
       path: iOS/Resources/StrengthTracker.entitlements
       properties:
         com.apple.developer.healthkit: true
-        com.apple.developer.usernotifications.time-sensitive: true
         com.apple.security.application-groups:
           - group.com.advaithmalka.onerep.shared
     info:

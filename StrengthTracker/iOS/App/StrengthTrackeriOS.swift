@@ -68,7 +68,7 @@ struct StrengthTrackeriOSApp: App {
             }
 
             // Request notification permission for rest timer background alerts
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .timeSensitive]) { _, _ in }
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
             // Register notification category for rest timer completions
             let restCategory = UNNotificationCategory(

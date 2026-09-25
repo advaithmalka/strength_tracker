@@ -1027,7 +1027,7 @@ public final class WatchWorkoutViewModel {
         notifContent.body = currentExercise.map { "Time for your next set of \($0.exercise.name)" }
             ?? "Time for your next set"
         notifContent.sound = .default
-        notifContent.interruptionLevel = .timeSensitive
+        notifContent.interruptionLevel = .active
         notifContent.relevanceScore = 1.0
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: max(1, restDuration), repeats: false

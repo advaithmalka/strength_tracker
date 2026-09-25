@@ -205,7 +205,7 @@ public final class RestTimerService {
         content.title = "Rest Complete"
         content.body = exerciseName.map { "Time for your next set of \($0)" } ?? "Time for your next set"
         content.sound = .default
-        content.interruptionLevel = .timeSensitive
+        content.interruptionLevel = .active
         content.relevanceScore = 1.0
         content.categoryIdentifier = "REST_TIMER_COMPLETE"
         // Fire notification 1s before Live Activity staleDate to avoid iOS suppression when both arrive simultaneously
