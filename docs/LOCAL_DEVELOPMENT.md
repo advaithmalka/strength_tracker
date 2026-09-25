@@ -32,7 +32,7 @@ xcodebuild -project StrengthTracker.xcodeproj -scheme StrengthTrackerWatch \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-The iOS target embeds the Watch app. Generic builds validate compilation without a simulator runtime or a signing account. Running on an iPhone/Watch simulator requires matching simulator runtimes; running on the user's devices requires Xcode signing and a paired Watch.
+The iOS target embeds the Watch app. Xcode 26.6 requires iOS and watchOS platform support to offer generic build destinations, even with signing disabled. Install those simulator runtimes through Xcode Settings → Components or Apple's `xcodebuild -downloadPlatform` / `-importPlatform` commands before building. Running on the user's devices also requires Xcode signing and a paired Watch.
 
 ## Working conventions
 
