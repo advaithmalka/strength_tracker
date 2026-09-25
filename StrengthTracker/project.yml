@@ -63,6 +63,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSHealthShareUsageDescription: "OneRep reads your workout data to display history and progress."
         NSHealthUpdateUsageDescription: "OneRep saves your strength training workouts to Apple Health."
+        NSMotionUsageDescription: "OneRep uses Watch movement to find set periods and count supported exercises."
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLName: com.advaithmalka.onerep.ios
@@ -110,6 +111,7 @@ targets:
           - workout-processing
         NSHealthShareUsageDescription: "OneRep reads your workout and heart rate data to display real-time metrics during workouts."
         NSHealthUpdateUsageDescription: "OneRep saves your strength training workouts to Apple Health."
+        NSMotionUsageDescription: "OneRep uses Watch movement to find set periods and count supported exercises."
 
   StrengthTrackerWidgets:
     type: app-extension

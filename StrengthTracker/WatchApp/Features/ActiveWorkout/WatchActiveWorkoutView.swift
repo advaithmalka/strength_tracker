@@ -37,6 +37,7 @@ struct WatchActiveWorkoutView: View {
             }
             .tabViewStyle(.verticalPage)
             .navigationBarBackButtonHidden()
+            .onAppear { if viewModel.isResting { selectedTab = 1 } }
             .onChange(of: viewModel.isResting) { _, isResting in
                 if isResting {
                     // Auto-navigate to rest timer when it starts

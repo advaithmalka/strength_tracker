@@ -121,11 +121,35 @@ public final class WatchWorkoutViewModel {
     public func restoreActiveWorkout() async {
         guard activeWorkout == nil else { return }
         do {
-            guard let restored = try await workoutRepository.fetchActive() else { return }
-            activeWorkout = restored
+            guard var restored = try await workoutRepository.fetchActive() else { return }
             currentExerciseIndex = restored.exercises.firstIndex {
                 $0.sets.contains(where: { !$0.isFullyCompleted })
             } ?? 0
+            if let rest = WidgetDataService().readWatchRestTimerState() {
+                if rest.workoutID == restored.id,
+                   let setID = rest.setID,
+                   let exerciseIndex = restored.exercises.firstIndex(where: { exercise in
+                       exercise.sets.contains(where: { $0.id == setID })
+                   }) {
+                    currentExerciseIndex = exerciseIndex
+                    if rest.endDate > Date() {
+                        restStartDate = rest.startDate
+                        restSetID = setID
+                        restDuration = TimeInterval(rest.totalSeconds)
+                        restTimeRemaining = rest.endDate.timeIntervalSinceNow
+                        isResting = true
+                        scheduleRestTicker()
+                    } else if let setIndex = restored.exercises[exerciseIndex].sets.firstIndex(where: { $0.id == setID }) {
+                        restored.exercises[exerciseIndex].sets[setIndex].restDurationSeconds = TimeInterval(rest.totalSeconds)
+                        restored.exercises[exerciseIndex].sets[setIndex].restEndedAt = rest.endDate
+                        try? await persistNow(restored)
+                        WidgetDataService().updateWatchRestTimerState(nil)
+                    }
+                } else {
+                    WidgetDataService().updateWatchRestTimerState(nil)
+                }
+            }
+            activeWorkout = restored
             isQuickStart = restored.templateId == nil
             isActive = true
             configureMotionForCurrentExercise()
@@ -909,7 +933,9 @@ public final class WatchWorkoutViewModel {
                 setNumber: currentSetNumber,
                 startDate: Date(),
                 endDate: Date().addingTimeInterval(TimeInterval(duration)),
-                totalSeconds: duration
+                totalSeconds: duration,
+                workoutID: activeWorkout?.id,
+                setID: restSetID
             )
             WidgetDataService().updateWatchRestTimerState(widgetState)
 
@@ -931,6 +957,12 @@ public final class WatchWorkoutViewModel {
         )
         UNUserNotificationCenter.current().add(request)
 
+        scheduleRestTicker()
+        publishLiveState()
+    }
+
+    private func scheduleRestTicker() {
+        restTimer?.invalidate()
         restTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let start = self.restStartDate else { return }
@@ -944,7 +976,6 @@ public final class WatchWorkoutViewModel {
                 }
             }
         }
-        publishLiveState()
     }
 
     public func stopRestTimer() {

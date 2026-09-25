@@ -238,6 +238,12 @@ public final class WidgetDataService: Sendable {
 
     // MARK: - Watch Rest Timer State
 
+    public func readWatchRestTimerState() -> WatchRestTimerState? {
+        guard let defaults = UserDefaults(suiteName: WidgetData.appGroupId),
+              let data = defaults.data(forKey: WatchRestTimerState.userDefaultsKey) else { return nil }
+        return try? decoder.decode(WatchRestTimerState.self, from: data)
+    }
+
     /// Write watch rest timer state to App Group for the watchOS widget
     public func updateWatchRestTimerState(_ state: WatchRestTimerState?) {
         guard let defaults = UserDefaults(suiteName: WidgetData.appGroupId) else { return }
