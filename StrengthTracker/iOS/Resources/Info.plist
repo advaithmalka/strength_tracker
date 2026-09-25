@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>HellBentIron</string>
+	<string>OneRep</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>HellBentIron</string>
+	<string>OneRep</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -22,19 +22,19 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>se.gunnarstrandberg.hellbent.ios</string>
+			<string>com.advaithmalka.onerep.ios</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>strengthtracker</string>
+				<string>onerep</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>HellBentIron reads your workout data to display history and progress.</string>
+	<string>OneRep reads your workout data to display history and progress.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>HellBentIron saves your strength training workouts to Apple Health.</string>
+	<string>OneRep saves your strength training workouts to Apple Health.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchScreen</key>

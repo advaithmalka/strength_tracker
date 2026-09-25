@@ -3969,6 +3969,16 @@ public enum ExerciseSeedData {
             isArchived: false,
             bodyweightFactor: 1
         ),
+        // OneRep's initial routine labels are stable exercise identities. They
+        // remain separate from broader catalog movements for clean history.
+        Exercise(id: deterministicUUID(for: "Incline Dumbbell Bench Press"), name: "Incline Dumbbell Bench Press", primaryMuscleGroup: .chest, secondaryMuscleGroups: [.shoulders, .triceps], category: .dumbbell, exerciseType: .weightedReps, instructions: "Press dumbbells on an incline bench.", isCustom: false, isArchived: false),
+        Exercise(id: deterministicUUID(for: "Straight-Bar Down-to-Up Tricep Extension"), name: "Straight-Bar Down-to-Up Tricep Extension", primaryMuscleGroup: .triceps, secondaryMuscleGroups: [], category: .cable, exerciseType: .weightedReps, instructions: "Use a straight cable bar and extend through the chosen down-to-up path.", isCustom: false, isArchived: false),
+        Exercise(id: deterministicUUID(for: "Upper-Back Row Machine"), name: "Upper-Back Row Machine", primaryMuscleGroup: .back, secondaryMuscleGroups: [.biceps, .traps], category: .machine, exerciseType: .weightedReps, instructions: "Row the machine handles toward the upper torso with controlled motion.", isCustom: false, isArchived: false),
+        Exercise(id: deterministicUUID(for: "Trap Shrug"), name: "Trap Shrug", primaryMuscleGroup: .traps, secondaryMuscleGroups: [.shoulders], category: .other, exerciseType: .weightedReps, instructions: "Elevate the shoulders, pause, and lower under control.", isCustom: false, isArchived: false),
+        Exercise(id: deterministicUUID(for: "Rope Bicep Curl"), name: "Rope Bicep Curl", primaryMuscleGroup: .biceps, secondaryMuscleGroups: [.forearms], category: .cable, exerciseType: .weightedReps, instructions: "Curl a cable rope without swinging the torso.", isCustom: false, isArchived: false),
+        Exercise(id: deterministicUUID(for: "Rear-Delt Fly"), name: "Rear-Delt Fly", primaryMuscleGroup: .shoulders, secondaryMuscleGroups: [.back], category: .other, exerciseType: .weightedReps, instructions: "Open the arms to the sides with a slight elbow bend.", isCustom: false, isArchived: false),
+        Exercise(id: deterministicUUID(for: "Leg Curl"), name: "Leg Curl", primaryMuscleGroup: .hamstrings, secondaryMuscleGroups: [], category: .machine, exerciseType: .weightedReps, instructions: "Curl through a controlled range on a leg curl machine.", isCustom: false, isArchived: false),
+        Exercise(id: deterministicUUID(for: "Calf Raise"), name: "Calf Raise", primaryMuscleGroup: .calves, secondaryMuscleGroups: [], category: .machine, exerciseType: .weightedReps, instructions: "Rise onto the toes, pause, and lower the heels under control.", isCustom: false, isArchived: false),
     ].map { exercise in
         var result = exercise
         if result.category == .dumbbell { result.weightRecording = DumbbellDefaults.recording(for: result.name) }

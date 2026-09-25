@@ -88,7 +88,7 @@ struct WorkoutSummaryWidgetView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .widgetURL(URL(string: "strengthtracker://workout"))
+        .widgetURL(URL(string: "onerep://workout"))
     }
 }
 #endif

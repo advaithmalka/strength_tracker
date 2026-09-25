@@ -15,7 +15,7 @@ struct WatchSetInputView: View {
     }
 
     private let weightUnit: WeightUnit
-    private var weightStep: Double { weightUnit == .kg ? 2.5 : 5.0 }
+    private let weightStep: Double = 2.5
     private var weightLabel: String { separateSides ? viewModel.currentExercise?.exercise.strengthRecording?.sideWeightLabel(weightUnit) ?? weightUnit.symbol : viewModel.currentExercise?.exercise.weightEntryLabel(weightUnit) ?? weightUnit.symbol }
 
     init(viewModel: WatchWorkoutViewModel, targetWeight: Double? = nil, targetReps: Int? = nil) {

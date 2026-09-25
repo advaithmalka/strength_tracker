@@ -13,7 +13,7 @@ struct WatchRestTimerEntry: TimelineEntry {
 // MARK: - Timeline Provider
 
 struct WatchRestTimerProvider: TimelineProvider {
-    private static let appGroupId = "group.se.gunnarstrandberg.hellbent.shared"
+    private static let appGroupId = "group.com.advaithmalka.onerep.shared"
 
     func placeholder(in context: Context) -> WatchRestTimerEntry {
         WatchRestTimerEntry(
@@ -141,7 +141,7 @@ struct WatchRestTimerWidgetView: View {
                 }
             }
             .padding(10)
-            .widgetURL(URL(string: "strengthtracker://workout"))
+            .widgetURL(URL(string: "onerep://workout"))
         } else {
             // No active timer — empty placeholder
             HStack(spacing: 6) {

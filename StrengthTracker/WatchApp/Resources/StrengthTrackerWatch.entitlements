@@ -6,7 +6,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.se.gunnarstrandberg.hellbent.shared</string>
+		<string>group.com.advaithmalka.onerep.shared</string>
 	</array>
 </dict>
 </plist>

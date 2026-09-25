@@ -95,7 +95,7 @@ struct WeeklyProgressWidgetView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .widgetURL(URL(string: "strengthtracker://dashboard"))
+        .widgetURL(URL(string: "onerep://dashboard"))
     }
 
     private func statRow(icon: String, label: String, value: String, color: Color) -> some View {

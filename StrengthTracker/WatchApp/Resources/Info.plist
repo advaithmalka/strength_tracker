@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>HellBentIron</string>
+	<string>OneRep</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>HellBentIron Watch</string>
+	<string>OneRep Watch</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,9 +21,9 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>HellBentIron reads your workout and heart rate data to display real-time metrics during workouts.</string>
+	<string>OneRep reads your workout and heart rate data to display real-time metrics during workouts.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>HellBentIron saves your strength training workouts to Apple Health.</string>
+	<string>OneRep saves your strength training workouts to Apple Health.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>WKApplication</key>
@@ -33,6 +33,6 @@
 		<string>workout-processing</string>
 	</array>
 	<key>WKCompanionAppBundleIdentifier</key>
-	<string>se.gunnarstrandberg.hellbent.ios</string>
+	<string>com.advaithmalka.onerep.ios</string>
 </dict>
 </plist>

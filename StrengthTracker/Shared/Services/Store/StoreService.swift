@@ -24,16 +24,8 @@ public final class StoreService {
     // MARK: - Init
 
     public init() {
-        transactionListener = Task { [weak self] in
-            for await result in Transaction.updates {
-                if case .verified(let transaction) = result {
-                    await transaction.finish()
-                    await self?.checkEntitlements()
-                }
-            }
-        }
-        Task { await checkEntitlements() }
-        Task { await loadProducts() }
+        // OneRep V1 has no purchases. Keep the type for upstream callers while
+        // avoiding StoreKit product and transaction traffic at launch.
     }
 
     deinit {

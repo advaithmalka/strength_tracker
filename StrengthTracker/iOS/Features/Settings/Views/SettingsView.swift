@@ -271,49 +271,6 @@ struct SettingsView: View {
                     }
                 }
 
-                // Webhook Section
-                Section {
-                    TextField("https://example.com/webhook", text: $preferencesService.webhookURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    SecureField("Bearer token (optional)", text: $preferencesService.webhookBearerToken)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Webhook")
-                } footer: {
-                    Text("Posts workout JSON to this URL after every completed workout. Use with AI trainers, n8n, Zapier, or any HTTP endpoint.")
-                }
-
-                // AI Assistant Section
-                if let aiCredentialsService {
-                    aiAssistantSection(credentials: aiCredentialsService)
-                }
-
-                // Legal Section
-                Section("Legal") {
-                    Link(destination: URL(string: "https://hellbentiron.com/privacy")!) {
-                        HStack {
-                            Text("Privacy Policy")
-                            Spacer()
-                            Image(systemName: "arrow.up.forward.square")
-                                .font(.system(size: 12))
-                                .foregroundStyle(STColors.textTertiary)
-                        }
-                    }
-
-                    Link(destination: URL(string: "https://hellbentiron.com/terms")!) {
-                        HStack {
-                            Text("Terms of Service")
-                            Spacer()
-                            Image(systemName: "arrow.up.forward.square")
-                                .font(.system(size: 12))
-                                .foregroundStyle(STColors.textTertiary)
-                        }
-                    }
-                }
-
                 // About Section
                 Section("About") {
                     HStack {

@@ -78,12 +78,12 @@ struct ContentView: View {
                 templateViewModel: templateViewModel,
                 userPreferencesService: userPreferencesService,
                 connectivityManager: connectivityManager,
-                proFeatureGate: proFeatureGate,
-                storeService: storeService,
-                aiCredentialsService: aiCredentialsService,
-                aiChatClient: aiChatClient,
-                aiChatViewModel: aiChatViewModel,
-                aiMemoryService: aiMemoryService,
+                proFeatureGate: nil,
+                storeService: nil,
+                aiCredentialsService: nil,
+                aiChatClient: nil,
+                aiChatViewModel: nil,
+                aiMemoryService: nil,
                 onStartWorkout: {
                     selectedTab = 1
                     Task {
@@ -115,7 +115,7 @@ struct ContentView: View {
                 exerciseListViewModel: exerciseListViewModel,
                 restTimerService: restTimerService,
                 analyticsViewModel: analyticsViewModel,
-                aiChat: aiChatEntry
+                aiChat: nil
             )
             .tint(STColors.textSecondary)
             .tabItem {
@@ -201,7 +201,7 @@ struct ContentView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        guard url.scheme == "strengthtracker" else { return }
+        guard url.scheme == "onerep" else { return }
         switch url.host {
         case "workout":
             selectedTab = 1

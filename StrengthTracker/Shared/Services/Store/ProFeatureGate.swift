@@ -13,7 +13,7 @@ public final class ProFeatureGate {
 
     /// Single source of truth: user has Pro access if they're a subscriber OR running in beta/debug.
     public var hasProAccess: Bool {
-        Self.isBeta || storeService.isProUser
+        true
     }
 
     /// Beta bypass: DEBUG builds always unlock, release builds unlock for TestFlight (sandbox receipt).

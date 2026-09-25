@@ -104,17 +104,6 @@ struct DashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
 
-                    // Progression Plan Card
-                    ProgressionPlanCardView(
-                        viewModel: progressionPlanViewModel,
-                        exerciseListViewModel: exerciseListViewModel,
-                        templateViewModel: templateViewModel,
-                        proFeatureGate: proFeatureGate,
-                        storeService: storeService,
-                        onStartSession: onStartSession
-                    )
-                    .padding(.horizontal, 20)
-
                     // Start Workout Button
                     Button(action: onStartWorkout) {
                         HStack(spacing: 10) {

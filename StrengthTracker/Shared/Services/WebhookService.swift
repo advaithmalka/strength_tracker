@@ -19,18 +19,7 @@ public final class WebhookService: @unchecked Sendable {
 
     @MainActor
     public func send(_ workout: Workout) async {
-        let urlString = preferencesService.webhookURL
-        guard !urlString.isEmpty, let url = URL(string: urlString) else { return }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = preferencesService.webhookBearerToken
-        if !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        request.httpBody = try? JSONEncoder().encode(workout)
-
-        let _ = try? await session.data(for: request)
+        // OneRep V1 never transmits workout data to a webhook.
+        _ = workout
     }
 }

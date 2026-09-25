@@ -160,7 +160,7 @@ public struct WidgetData: Codable, Sendable {
     public static let userDefaultsKey = "widget_data"
 
     /// App Group identifier
-    public static let appGroupId = "group.se.gunnarstrandberg.hellbent.shared"
+    public static let appGroupId = "group.com.advaithmalka.onerep.shared"
 
     /// Key for pending set completions from widget intents
     public static let pendingCompletionsKey = "widget_pending_completions"

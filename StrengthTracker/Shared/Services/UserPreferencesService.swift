@@ -9,7 +9,7 @@ public final class UserPreferencesService {
     public static let defaultBodyWeightKg: Double = 70.0
 
     /// Default rest timer duration in seconds
-    public static let defaultRestSecondsValue: Int = 90
+    public static let defaultRestSecondsValue: Int = 150
 
     /// Default reps when adding an exercise to a template
     public static let defaultRepsValue: Int = 10
@@ -117,8 +117,8 @@ public final class UserPreferencesService {
     public init() {
         let defaults = UserDefaults.standard
 
-        let weightRaw = defaults.string(forKey: "weightUnit") ?? "kg"
-        self.weightUnit = WeightUnit(rawValue: weightRaw) ?? .kg
+        let weightRaw = defaults.string(forKey: "weightUnit") ?? "lbs"
+        self.weightUnit = WeightUnit(rawValue: weightRaw) ?? .lbs
 
         let restSeconds = defaults.integer(forKey: "defaultRestSeconds")
         self.defaultRestSeconds = restSeconds != 0 ? restSeconds : Self.defaultRestSecondsValue
@@ -165,7 +165,7 @@ public final class UserPreferencesService {
 
     /// Reset all preferences to defaults
     public func resetToDefaults() {
-        weightUnit = .kg
+        weightUnit = .lbs
         distanceUnit = .km
         defaultRestSeconds = Self.defaultRestSecondsValue
         defaultReps = Self.defaultRepsValue

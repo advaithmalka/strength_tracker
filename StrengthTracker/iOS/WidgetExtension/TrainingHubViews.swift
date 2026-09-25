@@ -75,7 +75,7 @@ struct AnalyticsSmallView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .widgetURL(URL(string: currentHighlight?.destination ?? "strengthtracker://analytics"))
+        .widgetURL(URL(string: currentHighlight?.destination ?? "onerep://analytics"))
     }
 
     private var currentHighlight: WidgetHighlight? {
@@ -118,7 +118,7 @@ struct AnalyticsMediumView: View {
             // Right: Highlights
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(entry.visibleHighlights.prefix(2))) { highlight in
-                    Link(destination: URL(string: highlight.destination ?? "strengthtracker://analytics")!) { highlightRow(highlight) }
+                    Link(destination: URL(string: highlight.destination ?? "onerep://analytics")!) { highlightRow(highlight) }
                 }
 
                 if entry.visibleHighlights.count < 2 {
@@ -154,7 +154,7 @@ struct AnalyticsMediumView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .widgetURL(URL(string: entry.visibleHighlights.first?.destination ?? "strengthtracker://analytics"))
+        .widgetURL(URL(string: entry.visibleHighlights.first?.destination ?? "onerep://analytics"))
     }
 
     private var calendarStrip: some View {
@@ -246,7 +246,7 @@ struct AnalyticsLargeView: View {
             // Middle: Highlights
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(entry.visibleHighlights.prefix(3))) { highlight in
-                    Link(destination: URL(string: highlight.destination ?? "strengthtracker://analytics")!) { highlightRow(highlight) }
+                    Link(destination: URL(string: highlight.destination ?? "onerep://analytics")!) { highlightRow(highlight) }
                 }
                 if entry.visibleHighlights.isEmpty {
                     emptyHighlightsView
@@ -266,7 +266,7 @@ struct AnalyticsLargeView: View {
             } else {
                 HStack {
                     Spacer()
-                    Link(destination: URL(string: "strengthtracker://workout")!) {
+                    Link(destination: URL(string: "onerep://workout")!) {
                         HStack(spacing: 6) {
                             Image(systemName: "play.fill")
                                 .font(.system(size: 10))
@@ -395,7 +395,7 @@ struct AnalyticsLargeView: View {
 
                 Spacer()
 
-                Link(destination: URL(string: "strengthtracker://workout/start")!) {
+                Link(destination: URL(string: "onerep://workout/start")!) {
                     HStack(spacing: 4) {
                         Image(systemName: "play.fill")
                             .font(.system(size: 9))
@@ -473,7 +473,7 @@ struct ActiveWorkoutSmallView: View {
                     .foregroundStyle(WidgetColors.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .widgetURL(URL(string: "strengthtracker://workout"))
+            .widgetURL(URL(string: "onerep://workout"))
         )
     }
 }
@@ -599,7 +599,7 @@ struct ActiveWorkoutMediumView: View {
                 .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .widgetURL(URL(string: "strengthtracker://workout"))
+            .widgetURL(URL(string: "onerep://workout"))
         )
     }
 }
@@ -760,7 +760,7 @@ struct ActiveWorkoutLargeView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .widgetURL(URL(string: "strengthtracker://workout"))
+            .widgetURL(URL(string: "onerep://workout"))
         )
     }
 }
