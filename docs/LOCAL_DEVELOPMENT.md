@@ -16,6 +16,24 @@ If the APFS image is not mounted, attach it with:
 hdiutil attach '/Volumes/Samsung USB/OneRepDev.sparsebundle'
 ```
 
+Keep the Samsung drive attached while using Xcode or Simulator. On this Mac,
+`~/Library/Developer/CoreSimulator/Devices` links to
+`/Volumes/OneRepDev/SimulatorDevices`, and
+`~/Library/Developer/Xcode/DerivedData` links to
+`/Volumes/OneRepDev/DerivedData`. The Watch simulator booted successfully with
+its app container resolving through the external device link. Xcode itself and
+the OneRep clone are also on the external APFS volume. If either link appears
+broken, mount the sparsebundle before opening Xcode; do not let Xcode create a
+new empty directory in its place.
+
+Installed simulator runtime images are managed by macOS. The active watchOS
+runtime remains in `/System/Library/AssetsV2`, and the iOS runtime is not
+currently installed. A byte-identical 7.9 GB iOS image remains in
+`/Library/Developer/CoreSimulator/Cryptex/Images/Inbox`; macOS denied its
+removal even with administrator privileges. Its verified backup is the iOS
+exported bundle on the Samsung drive. Do not disable System Integrity Protection
+or replace managed runtime directories with symlinks to move these images.
+
 ## Generate and build
 
 ```sh
