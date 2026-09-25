@@ -160,6 +160,8 @@ public final class WorkoutFinalizer {
         if existing?.completedAt != nil, incoming.completedAt == nil {
             return
         }
+        if let existing, let completedAt = existing.completedAt,
+           completedAt == incoming.completedAt { return }
         if let existing {
             for i in incoming.exercises.indices where incoming.exercises[i].exercise.weightRecording == nil {
                 if let prior = existing.exercises.first(where: { $0.id == incoming.exercises[i].id }) {

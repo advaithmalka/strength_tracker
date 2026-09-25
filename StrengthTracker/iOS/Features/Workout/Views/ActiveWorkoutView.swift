@@ -63,7 +63,7 @@ struct ActiveWorkoutView: View {
                     startView
                 }
             }
-            .navigationTitle(viewModel.currentWorkout?.name ?? "Workout")
+            .navigationTitle(viewModel.currentWorkout?.name ?? viewModel.watchLiveState?.workout?.name ?? "Workout")
             .navigationBarTitleDisplayMode(.inline)
             .stNavigationBarStyle()
             .toolbar {
@@ -177,9 +177,7 @@ struct ActiveWorkoutView: View {
                     .font(.subheadline)
                     .foregroundStyle(STColors.textSecondary)
 
-                let elapsed = Date().timeIntervalSince(workout.startedAt)
-                let minutes = Int(elapsed) / 60
-                Text("\(minutes) min elapsed")
+                Text(workout.startedAt, style: .timer)
                     .font(.caption)
                     .foregroundStyle(STColors.textTertiary)
             }

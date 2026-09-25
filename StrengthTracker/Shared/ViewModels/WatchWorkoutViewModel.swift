@@ -611,9 +611,13 @@ public final class WatchWorkoutViewModel {
             resetSetAttempt(finalReps: reps ?? 0)
             viewingSetIndex = nil; pendingSetType = .normal
             if !wasComplete { startRestTimer(seconds: exercise.restTimerSeconds) }
-            if !isResting { configureMotionForCurrentExercise() }
+            if !isResting {
+                configureMotionForCurrentExercise()
+                publishLiveState()
+            }
+        } else {
+            publishLiveState()
         }
-        publishLiveState()
     }
 
     public func logSet(weight: Double?, reps: Int?, rpe: Double? = nil, detectedReps: Int? = nil) async throws {
@@ -681,8 +685,10 @@ public final class WatchWorkoutViewModel {
         let exercise = workout.exercises[currentExerciseIndex]
         print("[WatchVM] logSet → startRestTimer (exercise=\(exercise.exercise.name), restOverride=\(String(describing: exercise.restTimerSeconds)))")
         startRestTimer(seconds: exercise.restTimerSeconds)
-        if !isResting { configureMotionForCurrentExercise() }
-        publishLiveState()
+        if !isResting {
+            configureMotionForCurrentExercise()
+            publishLiveState()
+        }
     }
 
     public func removeSet(at exerciseIndex: Int, setIndex: Int) {
