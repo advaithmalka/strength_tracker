@@ -226,7 +226,8 @@ struct ContentViewWrapper: View {
                         "weightUnit": prefs.weightUnit.rawValue,
                         "autoStartRestTimer": prefs.autoStartRestTimer,
                         "distanceUnit": prefs.distanceUnit.rawValue,
-                        "bodyWeightKg": prefs.bodyWeightKg ?? 0
+                        "bodyWeightKg": prefs.bodyWeightKg ?? 0,
+                        "debugMotionRecordingEnabled": prefs.debugMotionRecordingEnabled
                     ])
                 }
             }

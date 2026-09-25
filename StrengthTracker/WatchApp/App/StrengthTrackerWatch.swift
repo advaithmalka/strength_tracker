@@ -134,6 +134,9 @@ struct StrengthTrackerWatchApp: App {
                         // 0 means the iPhone cleared the value
                         prefs.bodyWeightKg = bw > 0 ? bw : nil
                     }
+                    if let recording = settings["debugMotionRecordingEnabled"] as? Bool {
+                        prefs.debugMotionRecordingEnabled = recording
+                    }
                 }
             }
 

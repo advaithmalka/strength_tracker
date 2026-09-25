@@ -18,7 +18,7 @@ Exercise names may be matched to built-in catalog entries or added as custom cat
 
 ## Set flow
 
-On the Watch, either a Start Set control or recognized movement begins an attempt for the selected exercise. A supported detector collects reps in the background; a generic/manual attempt works for every exercise. After a detected rep, five seconds without another detected rep ends the attempt. End Set ends it immediately. Both paths open a review showing detected reps, editable final reps, and editable weight. The Digital Crown scrolls normally outside focused fields; in a focused reps field it changes by one rep, and in a focused weight field it changes by 2.5 lb. Reps and weight are saved only after review. Detected and final reps are retained separately, including when the detector was unavailable and the set was entered manually.
+On the Watch, either a Start Set control or a sustained period of wrist movement begins an attempt for any selected exercise. The generic motion detector marks the exercise period and ends it after five seconds without movement. End Set ends it immediately. A per-exercise detector adds automatic rep counting where available, starting with lateral raise. All paths open a review showing detected reps when available, editable final reps, and editable weight. The Digital Crown scrolls normally outside focused fields; in a focused reps field it changes by one rep, and in a focused weight field it changes by 2.5 lb. Reps and weight are saved only after review. Detected and final reps are retained separately, including when the rep detector was unavailable and the set was entered manually.
 
 The Watch begins a rest countdown after a set is saved. The default is 2:30, with a per-exercise override. Rest shows progress, haptics at completion, and can be ended early. Store actual set and rest timestamps/durations for future analysis.
 
@@ -30,7 +30,7 @@ The Watch owns an active Watch-started workout. It saves every confirmed set loc
 
 ## Motion architecture
 
-`MotionManager` owns CoreMotion sampling on Watch. `RepDetector` is a per-exercise interface that consumes timestamped, labeled motion samples and emits rep events. Begin with a left-wrist lateral raise detector, using an explicit start/finish state machine and conservative thresholding. Keep detector outputs separate from final user corrections. Developer recording is opt-in per attempt, stored locally with exercise label, wrist side, sample timestamps, detector version, and final count so future Create ML/Core ML activity classification can use it. Do not infer exercise identity in V1.
+`MotionManager` owns CoreMotion sampling on Watch. `ExercisePeriodDetector` finds sustained wrist activity for any selected exercise; a `RepDetector` is a separate per-exercise interface that consumes timestamped, labeled motion samples and emits rep events. Begin with a left-wrist lateral raise rep detector, using an explicit start/finish state machine and conservative thresholding. Keep detector outputs separate from final user corrections. Developer recording is opt-in per attempt, stored locally with exercise label, wrist side, sample timestamps, detector version, and final count so future Create ML/Core ML activity classification can use it. Do not infer exercise identity in V1.
 
 ## Scope boundary
 

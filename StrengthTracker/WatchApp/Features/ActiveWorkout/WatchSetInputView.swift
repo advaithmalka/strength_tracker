@@ -34,6 +34,12 @@ struct WatchSetInputView: View {
 
     var body: some View {
         VStack(spacing: 6) {
+            if viewModel.isReviewingSet {
+                Text(viewModel.reviewDetectedReps.map { "Detected \($0) reps · adjust below" }
+                     ?? "Set ended · enter reps and weight")
+                    .font(.caption2)
+                    .foregroundStyle(secondaryText)
+            }
             if let recording = viewModel.currentExercise?.exercise.strengthRecording {
                 if recording.supportsSeparateSides {
                     if separateSides {
@@ -57,6 +63,7 @@ struct WatchSetInputView: View {
                     onDecrement: { weight = max(0, weight - weightStep) },
                     onIncrement: { weight += weightStep }
                 )
+                .focusable()
                 .focused($focusedField, equals: .weight)
                 .digitalCrownRotation($weight, from: 0, through: weightUnit == .kg ? 500 : 1100, by: weightStep)
 
@@ -69,6 +76,7 @@ struct WatchSetInputView: View {
                     onDecrement: { reps = max(1, reps - 1) },
                     onIncrement: { reps += 1 }
                 )
+                .focusable()
                 .focused($focusedField, equals: .reps)
                 .digitalCrownRotation($reps, from: 1, through: 100, by: 1)
             }
@@ -122,7 +130,8 @@ struct WatchSetInputView: View {
                         Task { try? await viewModel.updateSet(weight: weightKg, reps: Int(reps)) }
                     } else {
                         Task {
-                            try? await viewModel.logSet(weight: weightKg, reps: Int(reps))
+                            try? await viewModel.logSet(weight: weightKg, reps: Int(reps),
+                                                        detectedReps: viewModel.reviewDetectedReps)
                         }
                     }
                 } label: {
@@ -157,7 +166,8 @@ struct WatchSetInputView: View {
             }
         }
         .onAppear {
-            focusedField = .weight
+            // Keep Crown scrolling the page until the user taps a field.
+            focusedField = nil
             if let sides = viewModel.visibleSet?.sideSets {
                 separateSides = true
                 selectedSide = sides.first(where: { !$0.effort.isCompleted })?.side ?? .left

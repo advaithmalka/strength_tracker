@@ -271,6 +271,15 @@ struct SettingsView: View {
                     }
                 }
 
+                #if DEBUG
+                Section("Developer") {
+                    Toggle("Record labeled Watch motion", isOn: $preferencesService.debugMotionRecordingEnabled)
+                    Text("Recordings stay on the Watch and include the selected exercise and corrected rep count.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                #endif
+
                 // About Section
                 Section("About") {
                     HStack {
@@ -333,6 +342,7 @@ struct SettingsView: View {
             .onChange(of: preferencesService.deloadWeightPercentage) { _, _ in syncSettingsToWatch() }
             .onChange(of: preferencesService.deloadRestPercentage) { _, _ in syncSettingsToWatch() }
             .onChange(of: preferencesService.bodyWeightKg) { _, _ in syncSettingsToWatch() }
+            .onChange(of: preferencesService.debugMotionRecordingEnabled) { _, _ in syncSettingsToWatch() }
     }
 
     @ViewBuilder
@@ -426,7 +436,8 @@ struct SettingsView: View {
             "autoStartRestTimer": preferencesService.autoStartRestTimer,
             "distanceUnit": preferencesService.distanceUnit.rawValue,
             "intensityMetric": preferencesService.intensityMetric.rawValue,
-            "bodyWeightKg": preferencesService.bodyWeightKg ?? 0
+            "bodyWeightKg": preferencesService.bodyWeightKg ?? 0,
+            "debugMotionRecordingEnabled": preferencesService.debugMotionRecordingEnabled
         ])
     }
 

@@ -34,6 +34,13 @@ public final class WatchWorkoutViewModel {
     // Completion guard (prevents double-tap and provides loading state)
     public var isCompleting = false
 
+    // Motion periods work for every selected exercise. Rep counting is per exercise.
+    public var isCollectingSet = false
+    public var isReviewingSet = false
+    public var detectedRepCount = 0
+    public var reviewDetectedReps: Int? { detector == nil ? nil : detectedRepCount }
+    public var canDetectCurrentExercise: Bool { detector != nil && motionManager.isAvailable }
+
     // Notes
     public var workoutNotes: String = ""
 
@@ -57,6 +64,13 @@ public final class WatchWorkoutViewModel {
     private var restStartDate: Date?
     private var restSetID: UUID?
     private var pendingPersistence: Task<Void, Never>?
+    private let motionManager = MotionManager()
+    private let motionRecording = MotionRecording()
+    private var detector: (any RepDetector)?
+    private var periodDetector = ExercisePeriodDetector()
+    private var preRoll: [MotionSample] = []
+    private var setInactivityTimer: Timer?
+    private var lastSetActivityAt: Date?
 
     // Watch workout session manager (nil on iOS)
     private var watchSessionManager: (any WatchWorkoutSessionManager)?
@@ -112,10 +126,101 @@ public final class WatchWorkoutViewModel {
             } ?? 0
             isQuickStart = restored.templateId == nil
             isActive = true
+            configureMotionForCurrentExercise()
             connectivityManager.sendWorkoutSnapshot(restored)
         } catch {
             print("[WatchWorkoutVM] Recovery failed: \(error)")
         }
+    }
+
+    private func configureMotionForCurrentExercise() {
+        motionManager.stop()
+        motionManager.onSample = nil
+        preRoll = []
+        periodDetector.reset()
+        guard isActive, !isResting, let exercise = currentExercise?.exercise else {
+            detector = nil
+            return
+        }
+        detector = RepDetectorFactory.make(exerciseName: exercise.name, wristSide: .left)
+        motionManager.onSample = { [weak self] sample in self?.handleMotionSample(sample) }
+        motionManager.start(exerciseID: exercise.id, wristSide: .left)
+    }
+
+    private func handleMotionSample(_ sample: MotionSample) {
+        guard isActive, !isResting, !isReviewingSet,
+              sample.exerciseID == currentExercise?.exercise.id else { return }
+        preRoll.append(sample)
+        if preRoll.count > 100 { preRoll.removeFirst(preRoll.count - 100) }
+        if isCollectingSet { motionRecording.append(sample) }
+        switch periodDetector.process(sample) {
+        case .started:
+            if !isCollectingSet { beginSetAttempt() }
+            markSetActivity(at: sample.recordedAt)
+        case .activity:
+            if isCollectingSet { markSetActivity(at: sample.recordedAt) }
+        case nil:
+            break
+        }
+        guard var detector else { return }
+        let repEvent = detector.process(sample)
+        self.detector = detector
+        switch repEvent {
+        case .movementStarted:
+            if !isCollectingSet { beginSetAttempt() }
+            markSetActivity(at: sample.recordedAt)
+        case .repCompleted:
+            if !isCollectingSet { beginSetAttempt() }
+            detectedRepCount += 1
+            markSetActivity(at: sample.recordedAt)
+        case nil:
+            break
+        }
+    }
+
+    private func markSetActivity(at date: Date) {
+        lastSetActivityAt = date
+        guard setInactivityTimer == nil else { return }
+        setInactivityTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let last = self.lastSetActivityAt else { return }
+                if Date().timeIntervalSince(last) >= 5 { self.endSetAttempt() }
+            }
+        }
+    }
+
+    public func beginSetAttempt() {
+        guard isActive, !isResting, !isCollectingSet, !isReviewingSet,
+              let exercise = currentExercise?.exercise else { return }
+        isCollectingSet = true
+        detectedRepCount = 0
+        lastSetActivityAt = nil
+        setInactivityTimer?.invalidate()
+        motionRecording.begin(exerciseID: exercise.id, exerciseName: exercise.name,
+                              wristSide: .left, detectorVersion: detector?.version ?? "period-only-1",
+                              preRoll: preRoll)
+    }
+
+    public func endSetAttempt() {
+        guard isCollectingSet else { return }
+        setInactivityTimer?.invalidate()
+        setInactivityTimer = nil
+        lastSetActivityAt = nil
+        isCollectingSet = false
+        isReviewingSet = true
+        motionManager.stop()
+    }
+
+    private func resetSetAttempt(finalReps: Int) {
+        _ = motionRecording.finish(detectedReps: detectedRepCount, finalReps: finalReps)
+        setInactivityTimer?.invalidate()
+        setInactivityTimer = nil
+        lastSetActivityAt = nil
+        isCollectingSet = false
+        isReviewingSet = false
+        detectedRepCount = 0
+        detector?.reset()
+        periodDetector.reset()
     }
 
     // MARK: - Computed Properties
@@ -269,6 +374,7 @@ public final class WatchWorkoutViewModel {
         activeWorkout = workout
         currentExerciseIndex = 0
         isActive = true
+        configureMotionForCurrentExercise()
     }
 
     /// Async: persists the current workout and starts HealthKit session.
@@ -356,6 +462,7 @@ public final class WatchWorkoutViewModel {
         activeWorkout = workout
         currentExerciseIndex = 0
         isActive = true
+        configureMotionForCurrentExercise()
 
         // Persist and start HealthKit in background
         do {
@@ -415,8 +522,10 @@ public final class WatchWorkoutViewModel {
         try await persistNow(workout)
         connectivityManager.sendWorkoutSnapshot(workout)
         if set.isFullyCompleted {
+            resetSetAttempt(finalReps: reps ?? 0)
             viewingSetIndex = nil; pendingSetType = .normal
             if !wasComplete { startRestTimer(seconds: exercise.restTimerSeconds) }
+            if !isResting { configureMotionForCurrentExercise() }
         }
     }
 
@@ -472,6 +581,7 @@ public final class WatchWorkoutViewModel {
         pendingSetType = .normal
 
         try await persistNow(workout)
+        resetSetAttempt(finalReps: reps ?? 0)
 
         // Send live snapshot to iPhone
         connectivityManager.sendWorkoutSnapshot(workout)
@@ -480,6 +590,7 @@ public final class WatchWorkoutViewModel {
         let exercise = workout.exercises[currentExerciseIndex]
         print("[WatchVM] logSet → startRestTimer (exercise=\(exercise.exercise.name), restOverride=\(String(describing: exercise.restTimerSeconds)))")
         startRestTimer(seconds: exercise.restTimerSeconds)
+        if !isResting { configureMotionForCurrentExercise() }
     }
 
     public func removeSet(at exerciseIndex: Int, setIndex: Int) {
@@ -517,6 +628,12 @@ public final class WatchWorkoutViewModel {
         guard var workout = activeWorkout else {
             throw WorkoutError.noActiveWorkout
         }
+
+        motionManager.stop()
+        setInactivityTimer?.invalidate()
+        motionRecording.discard()
+        isCollectingSet = false
+        isReviewingSet = false
 
         stopRestTimer()
         await pendingPersistence?.value
@@ -571,6 +688,11 @@ public final class WatchWorkoutViewModel {
             isActive = false
         }
 
+        motionManager.stop()
+        setInactivityTimer?.invalidate()
+        motionRecording.discard()
+        isCollectingSet = false
+        isReviewingSet = false
         stopRestTimer()
 
         await watchSessionManager?.discardWorkoutSession()
@@ -591,19 +713,21 @@ public final class WatchWorkoutViewModel {
     // MARK: - Navigation
 
     public func nextExercise() {
-        guard let workout = activeWorkout else { return }
+        guard let workout = activeWorkout, !isCollectingSet, !isReviewingSet else { return }
         if currentExerciseIndex < workout.exercises.count - 1 {
             viewingSetIndex = nil
             pendingSetType = .normal
             currentExerciseIndex += 1
+            configureMotionForCurrentExercise()
         }
     }
 
     public func previousExercise() {
-        if currentExerciseIndex > 0 {
+        if currentExerciseIndex > 0, !isCollectingSet, !isReviewingSet {
             viewingSetIndex = nil
             pendingSetType = .normal
             currentExerciseIndex -= 1
+            configureMotionForCurrentExercise()
         }
     }
 
@@ -800,9 +924,11 @@ public final class WatchWorkoutViewModel {
         }
         #endif
         stopRestTimer()
+        configureMotionForCurrentExercise()
     }
 
     public func skipRestTimer() {
         stopRestTimer()
+        configureMotionForCurrentExercise()
     }
 }

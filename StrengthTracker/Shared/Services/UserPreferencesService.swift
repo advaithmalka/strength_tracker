@@ -72,6 +72,11 @@ public final class UserPreferencesService {
         didSet { UserDefaults.standard.set(aiChatEnabled, forKey: "aiChatEnabled") }
     }
 
+    /// Explicit opt-in for local, labeled motion recordings in debug builds.
+    public var debugMotionRecordingEnabled: Bool {
+        didSet { UserDefaults.standard.set(debugMotionRecordingEnabled, forKey: "debugMotionRecordingEnabled") }
+    }
+
     /// Vector schema version — bump when normalization constants change to trigger recomputation
     public var vectorVersion: Int {
         didSet { UserDefaults.standard.set(vectorVersion, forKey: "vectorVersion") }
@@ -161,6 +166,7 @@ public final class UserPreferencesService {
         self.effectiveLoadModelVersion = defaults.integer(forKey: "effectiveLoadModelVersion")
 
         self.aiChatEnabled = defaults.bool(forKey: "aiChatEnabled")
+        self.debugMotionRecordingEnabled = defaults.bool(forKey: "debugMotionRecordingEnabled")
     }
 
     /// Reset all preferences to defaults
@@ -174,6 +180,7 @@ public final class UserPreferencesService {
         intensityMetric = .rpe
         deloadWeightPercentage = 50
         deloadRestPercentage = 75
+        debugMotionRecordingEnabled = false
         // Note: Don't reset onboarding, seeding, or HealthKit auth flags
     }
 }

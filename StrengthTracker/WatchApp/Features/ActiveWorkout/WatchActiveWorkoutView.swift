@@ -92,14 +92,19 @@ struct WatchActiveWorkoutView: View {
                         .foregroundStyle(secondaryText)
                 }
 
-                // Set input area or completion view
-                if !viewModel.currentExercisePlannedSetsComplete || isAddingExtraSet || viewModel.isEditingCompletedSet {
+                // A motion period or End Set always opens the editable review.
+                if viewModel.isReviewingSet || viewModel.isEditingCompletedSet {
                     WatchSetInputView(
                         viewModel: viewModel,
                         targetWeight: viewModel.viewingSetWeight,
-                        targetReps: viewModel.viewingSetReps
+                        targetReps: viewModel.isReviewingSet
+                            ? ((viewModel.reviewDetectedReps ?? 0) > 0
+                                ? viewModel.reviewDetectedReps : viewModel.viewingSetReps)
+                            : viewModel.viewingSetReps
                     )
-                    .id(viewModel.viewingSetIndex ?? viewModel.currentSetNumber)
+                    .id(viewModel.isEditingCompletedSet ? "edit-\(viewModel.viewingSetIndex ?? 0)" : "review-\(viewModel.currentSetNumber)")
+                } else if viewModel.isCollectingSet || !viewModel.currentExercisePlannedSetsComplete || isAddingExtraSet {
+                    setPeriodControls
                 } else {
                     exerciseCompletionView
                 }
@@ -169,6 +174,38 @@ struct WatchActiveWorkoutView: View {
         }
         .padding(.horizontal, 4)
         .padding(.top, 2)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 35).onEnded { gesture in
+                guard abs(gesture.translation.width) > abs(gesture.translation.height) * 1.5 else { return }
+                if gesture.translation.width < 0 { viewModel.nextExercise() }
+                else { viewModel.previousExercise() }
+            }
+        )
+    }
+
+    private var setPeriodControls: some View {
+        VStack(spacing: 8) {
+            if viewModel.isCollectingSet {
+                Text(viewModel.canDetectCurrentExercise
+                     ? "Lifting · \(viewModel.detectedRepCount) detected"
+                     : "Lifting · enter reps after set")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(secondaryText)
+                    .monospacedDigit()
+                Button("END SET") { viewModel.endSetAttempt() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(primaryYellow)
+            } else {
+                Text("Move to start automatically")
+                    .font(.system(size: 11))
+                    .foregroundStyle(secondaryText)
+                Button("START SET") { viewModel.beginSetAttempt() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(primaryYellow)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
     }
 
     private var setTypeBadgeLabel: String {
