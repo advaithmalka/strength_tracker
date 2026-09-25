@@ -37,12 +37,14 @@ targets.append(contentsOf: [
     .target(
         name: "StrengthTrackeriOS",
         dependencies: ["StrengthTrackerShared"],
-        path: "iOS"
+        path: "iOS",
+        exclude: ["WidgetExtension"]
     ),
     .target(
         name: "StrengthTrackerWatch",
         dependencies: ["StrengthTrackerShared"],
-        path: "WatchApp"
+        path: "WatchApp",
+        exclude: ["WidgetExtension"]
     ),
 ])
 #endif
