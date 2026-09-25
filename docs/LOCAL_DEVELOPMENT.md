@@ -37,7 +37,16 @@ xcodebuild -project StrengthTracker.xcodeproj -scheme StrengthTrackerWatch \
 
 The iOS target embeds the Watch app. Xcode 26.6 requires iOS and watchOS platform support to offer generic build destinations, even with signing disabled. Install those simulator runtimes through Xcode Settings → Components or Apple's `xcodebuild -downloadPlatform` / `-importPlatform` commands before building. Running on the user's devices also requires Xcode signing and a paired Watch.
 
-On this Mac, Xcode 26.6, iOS 26.5 Simulator, and watchOS 26.5 Simulator are installed. Both generic builds completed on September 25, 2026 with signing disabled. A first build can temporarily use several gigabytes of internal swap even though derived data and temporary build files are directed to the external volume. Recoverable caches moved to `/Volumes/OneRepDev/StorageRelief` remain available there if they need to be restored. Simulator launch and sensor behavior still need device-level validation.
+On this Mac, Xcode 26.6 and watchOS 26.5 Simulator are installed. The iOS 26.5 Simulator runtime was removed after validation because internal storage was too low to keep both simulators available. Its complete exported backup is at `/Volumes/OneRepDev/Platforms/iphonesimulator_26.5_23F77.exportedBundle`. Both generic device builds and the iPhone simulator build completed on September 25, 2026 with signing disabled; the iPhone and Watch apps each launched separately in Simulator. The Watch manual set review and rest timer were checked in Simulator. Motion detection and live paired-device sync still need physical-device or paired-simulator validation.
+
+Restore the iOS runtime only after the Mac has roughly 25–30 GB free internally for installation staging, simulator data, and swap:
+
+```sh
+DEVELOPER_DIR='/Volumes/OneRepDev/Xcode.app/Contents/Developer' \
+  xcodebuild -importPlatform '/Volumes/OneRepDev/Platforms/iphonesimulator_26.5_23F77.exportedBundle'
+```
+
+A build can temporarily use several gigabytes of internal swap even though derived data and temporary build files are directed to the external volume. On September 25, an incremental Watch build was interrupted when free internal space fell below 1 GB; do not retry builds at that margin. Recoverable caches moved to `/Volumes/OneRepDev/StorageRelief` remain available there if they need to be restored.
 
 ## Working conventions
 
