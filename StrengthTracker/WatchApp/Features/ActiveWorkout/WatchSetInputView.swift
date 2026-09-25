@@ -15,14 +15,14 @@ struct WatchSetInputView: View {
     }
 
     private let weightUnit: WeightUnit
-    private let weightStep: Double = 2.5
+    private var weightStep: Double { weightUnit == .lbs ? 2.5 : 2.5 / WeightUnit.lbsPerKg }
     private var weightLabel: String { separateSides ? viewModel.currentExercise?.exercise.strengthRecording?.sideWeightLabel(weightUnit) ?? weightUnit.symbol : viewModel.currentExercise?.exercise.weightEntryLabel(weightUnit) ?? weightUnit.symbol }
 
     init(viewModel: WatchWorkoutViewModel, targetWeight: Double? = nil, targetReps: Int? = nil) {
         let prefs = UserPreferencesService()
         self._viewModel = State(initialValue: viewModel)
         // targetWeight is stored in kg; the crown/steppers operate in the display unit.
-        self._weight = State(initialValue: prefs.weightUnit.fromKg(targetWeight ?? 20.0))
+        self._weight = State(initialValue: targetWeight.map { prefs.weightUnit.fromKg($0) } ?? 20.0)
         self._reps = State(initialValue: Double(targetReps ?? prefs.defaultReps))
         self.weightUnit = prefs.weightUnit
     }
@@ -57,7 +57,7 @@ struct WatchSetInputView: View {
                 // Weight card
                 inputCard(
                     label: weightLabel,
-                    value: String(format: "%g", weight),
+                    value: weightUnit == .lbs ? String(format: "%g", weight) : String(format: "%.1f", weight),
                     isFocused: focusedField == .weight,
                     onTap: { focusedField = .weight },
                     onDecrement: { weight = max(0, weight - weightStep) },

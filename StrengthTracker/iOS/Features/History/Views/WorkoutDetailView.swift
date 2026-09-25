@@ -246,7 +246,12 @@ struct WorkoutDetailView: View {
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
-                                    if let completedAt = exerciseSet.completedAt {
+                                    if let startedAt = exerciseSet.startedAt,
+                                       let completedAt = exerciseSet.completedAt {
+                                        Text("\(startedAt.formatted(date: .omitted, time: .shortened))–\(completedAt.formatted(date: .omitted, time: .shortened))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    } else if let completedAt = exerciseSet.completedAt {
                                         Text("Logged \(completedAt.formatted(date: .omitted, time: .shortened))")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
