@@ -156,11 +156,11 @@ public final class WorkoutFinalizer {
     /// incomplete copy overwrite a completed one) and runs the completion pipeline.
     public func workoutReceivedFromWatch(_ workout: Workout, metadata: [String: String]?) async {
         var incoming = workout
-        if let existing = try? await workoutRepository.fetchAll().first(where: { $0.id == incoming.id }),
-           existing.completedAt != nil, incoming.completedAt == nil {
+        let existing = try? await workoutRepository.fetchAll().first(where: { $0.id == incoming.id })
+        if existing?.completedAt != nil, incoming.completedAt == nil {
             return
         }
-        if let existing = try? await workoutRepository.fetchAll().first(where: { $0.id == incoming.id }) {
+        if let existing {
             for i in incoming.exercises.indices where incoming.exercises[i].exercise.weightRecording == nil {
                 if let prior = existing.exercises.first(where: { $0.id == incoming.exercises[i].id }) {
                     incoming.exercises[i].exercise.weightRecording = prior.exercise.weightRecording
@@ -175,6 +175,9 @@ public final class WorkoutFinalizer {
             incoming.plannedSessionId = sessionId
             incoming.plannedPlanId = planId
         }
+        // transferUserInfo may redeliver after reconnection; an identical
+        // completed workout must not rerun PRs, analytics, or widget updates.
+        if let existing, existing == incoming { return }
         guard let saved = try? await workoutRepository.save(incoming) else { return }
         guard saved.completedAt != nil else {
             dataRevision.bump()
