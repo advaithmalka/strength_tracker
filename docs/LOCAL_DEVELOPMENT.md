@@ -29,11 +29,12 @@ new empty directory in its place.
 
 Installed simulator runtime images are managed by macOS. The active watchOS
 runtime remains in `/System/Library/AssetsV2`, and the iOS runtime is not
-currently installed. A byte-identical 7.9 GB iOS image remains in
-`/Library/Developer/CoreSimulator/Cryptex/Images/Inbox`; macOS denied its
-removal even with administrator privileges. Its verified backup is the iOS
-exported bundle on the Samsung drive. Do not disable System Integrity Protection
-or replace managed runtime directories with symlinks to move these images.
+currently installed. A failed install can leave a 7.9 GB iOS image in
+`/Library/Developer/CoreSimulator/Cryptex/Images/Inbox`. Terminal with Full
+Disk Access is needed to remove a protected duplicate after checking it against
+the verified iOS exported bundle on the Samsung drive. Do not
+disable System Integrity Protection or replace managed runtime directories with
+symlinks to move these images.
 
 ## Generate and build
 
@@ -58,7 +59,7 @@ The iOS target embeds the Watch app. Xcode 26.6 requires iOS and watchOS platfor
 
 On this Mac, Xcode 26.6 and watchOS 26.5 Simulator are installed. The iOS 26.5 Simulator runtime was removed after validation because internal storage was too low to keep both simulators available. Its complete exported backup is at `/Volumes/OneRepDev/Platforms/iphonesimulator_26.5_23F77.exportedBundle`. Both generic device builds and the iPhone simulator build completed on September 25, 2026 with signing disabled; the iPhone and Watch apps each launched separately in Simulator. The Watch manual set review and rest timer were checked in Simulator. Motion detection and live paired-device sync still need physical-device or paired-simulator validation.
 
-Restore the iOS runtime only after the Mac has roughly 25–30 GB free internally for installation staging, simulator data, and swap:
+Restore the iOS runtime only after the Mac has at least 30–35 GB free internally for installation staging, simulator data, and swap. Attempts with about 22 GB free failed with CoreSimulator disk-space error 14. Both `xcodebuild -importPlatform` and direct `simctl runtime add` copied about 8 GB internally and ignored an external `TMPDIR` for that staging step:
 
 ```sh
 DEVELOPER_DIR='/Volumes/OneRepDev/Xcode.app/Contents/Developer' \
