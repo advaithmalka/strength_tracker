@@ -126,6 +126,15 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
     public var setType: SetType
     public var weight: Double?
     public var reps: Int?
+    /// Raw detector output before the lifter reviewed this set. `reps` is final.
+    public var detectedReps: Int?
+    public var finalReps: Int? {
+        get { reps }
+        set { reps = newValue }
+    }
+    /// Measured rest after this set; nil until the countdown ends or is skipped.
+    public var restDurationSeconds: Double?
+    public var restEndedAt: Date?
     public var durationSeconds: Int?
     public var distanceMeters: Double?
     public var rpe: Double?
@@ -294,13 +303,19 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
         isFailure: Bool = false,
         completedAt: Date?,
         dropSets: [DropSetEntry] = [],
-        sideSets: [SideSetEntry]? = nil
+        sideSets: [SideSetEntry]? = nil,
+        detectedReps: Int? = nil,
+        restDurationSeconds: Double? = nil,
+        restEndedAt: Date? = nil
     ) {
         self.id = id
         self.order = order
         self.setType = setType
         self.weight = weight
         self.reps = reps
+        self.detectedReps = detectedReps
+        self.restDurationSeconds = restDurationSeconds
+        self.restEndedAt = restEndedAt
         self.durationSeconds = durationSeconds
         self.distanceMeters = distanceMeters
         self.rpe = rpe
@@ -317,6 +332,7 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
     private enum CodingKeys: String, CodingKey {
         case id, order, setType, weight, reps, durationSeconds, distanceMeters
         case rpe, rir, isCompleted, isPersonalRecord, isFailure, completedAt, dropSets, sideSets
+        case detectedReps, restDurationSeconds, restEndedAt
     }
 
     // Custom decoding for backward compatibility — JSON logged before drop sets / RIR /
@@ -329,6 +345,9 @@ public struct ExerciseSet: Identifiable, Hashable, Sendable, Codable, IntensityR
         setType = try container.decode(SetType.self, forKey: .setType)
         weight = try container.decodeIfPresent(Double.self, forKey: .weight)
         reps = try container.decodeIfPresent(Int.self, forKey: .reps)
+        detectedReps = try container.decodeIfPresent(Int.self, forKey: .detectedReps)
+        restDurationSeconds = try container.decodeIfPresent(Double.self, forKey: .restDurationSeconds)
+        restEndedAt = try container.decodeIfPresent(Date.self, forKey: .restEndedAt)
         durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
         distanceMeters = try container.decodeIfPresent(Double.self, forKey: .distanceMeters)
         rpe = try container.decodeIfPresent(Double.self, forKey: .rpe)

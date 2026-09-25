@@ -48,6 +48,7 @@ struct StrengthTrackerWatchApp: App {
             // Then recover orphaned HealthKit workout session on launch (Fix 7)
             #if canImport(HealthKit) && os(watchOS)
             let hkManager = healthKitManager
+            let workoutVM = container.watchWorkoutViewModel
             Task { @MainActor in
                 do {
                     try await hkManager.requestAuthorization()
@@ -55,6 +56,7 @@ struct StrengthTrackerWatchApp: App {
                     print("[Watch] HealthKit authorization failed: \(error)")
                 }
                 await hkManager.recoverOrphanedSession()
+                await workoutVM.restoreActiveWorkout()
             }
             #endif
 

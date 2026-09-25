@@ -204,7 +204,10 @@ public enum ExerciseSetMapper {
             isFailure: entity.isFailure || entity.setType == SetType.failure.rawValue,
             completedAt: entity.completedAt,
             dropSets: decodeDropSets(entity.dropSetsJSON),
-            sideSets: entity.sideSetsJSON.flatMap { try? JSONDecoder().decode([SideSetEntry].self, from: Data($0.utf8)) }
+            sideSets: entity.sideSetsJSON.flatMap { try? JSONDecoder().decode([SideSetEntry].self, from: Data($0.utf8)) },
+            detectedReps: entity.detectedReps,
+            restDurationSeconds: entity.restDurationSeconds,
+            restEndedAt: entity.restEndedAt
         )
     }
 
@@ -227,6 +230,9 @@ public enum ExerciseSetMapper {
             dropSetsJSON: encodeDropSets(domain.dropSets)
         )
         entity.sideSetsJSON = domain.sideSets.flatMap { try? String(decoding: JSONEncoder().encode($0), as: UTF8.self) }
+        entity.detectedReps = domain.detectedReps
+        entity.restDurationSeconds = domain.restDurationSeconds
+        entity.restEndedAt = domain.restEndedAt
         return entity
     }
 
@@ -246,6 +252,9 @@ public enum ExerciseSetMapper {
         entity.completedAt = domain.completedAt
         entity.dropSetsJSON = encodeDropSets(domain.dropSets)
         entity.sideSetsJSON = domain.sideSets.flatMap { try? String(decoding: JSONEncoder().encode($0), as: UTF8.self) }
+        entity.detectedReps = domain.detectedReps
+        entity.restDurationSeconds = domain.restDurationSeconds
+        entity.restEndedAt = domain.restEndedAt
     }
 
     private static func encodeDropSets(_ entries: [DropSetEntry]) -> String? {

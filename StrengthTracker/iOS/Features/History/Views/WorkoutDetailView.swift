@@ -234,12 +234,29 @@ struct WorkoutDetailView: View {
                                     }
                                 }
                             } else {
-                            SetRowView(
-                                exerciseSet: exerciseSet,
-                                weightUnit: historyViewModel?.userPreferencesService?.weightUnit ?? .kg,
-                                intensityMetric: intensityMetric,
-                                setNumber: index + 1
-                            )
+                                VStack(alignment: .leading, spacing: 3) {
+                                    SetRowView(
+                                        exerciseSet: exerciseSet,
+                                        weightUnit: historyViewModel?.userPreferencesService?.weightUnit ?? .kg,
+                                        intensityMetric: intensityMetric,
+                                        setNumber: index + 1
+                                    )
+                                    if let detected = exerciseSet.detectedReps {
+                                        Text("Detected \(detected) · Saved \(exerciseSet.finalReps ?? 0) reps")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let completedAt = exerciseSet.completedAt {
+                                        Text("Logged \(completedAt.formatted(date: .omitted, time: .shortened))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let rest = exerciseSet.restDurationSeconds {
+                                        Text("Rest \(formatDuration(rest))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                             }
                         }
                     }

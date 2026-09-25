@@ -9,6 +9,9 @@ public final class ExerciseSetEntity {
     public var setType: String
     public var weight: Double?
     public var reps: Int?
+    public var detectedReps: Int? = nil
+    public var restDurationSeconds: Double? = nil
+    public var restEndedAt: Date? = nil
     public var durationSeconds: Int?
     public var distanceMeters: Double?
     public var rpe: Double?

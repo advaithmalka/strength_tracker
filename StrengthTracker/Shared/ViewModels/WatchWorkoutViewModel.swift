@@ -55,6 +55,8 @@ public final class WatchWorkoutViewModel {
     }
     private var restTimer: Timer?
     private var restStartDate: Date?
+    private var restSetID: UUID?
+    private var pendingPersistence: Task<Void, Never>?
 
     // Watch workout session manager (nil on iOS)
     private var watchSessionManager: (any WatchWorkoutSessionManager)?
@@ -82,6 +84,38 @@ public final class WatchWorkoutViewModel {
 
     public func setWatchSessionManager(_ manager: any WatchWorkoutSessionManager) {
         self.watchSessionManager = manager
+    }
+
+    /// Serialize saves triggered by synchronous Watch controls so an older
+    /// snapshot cannot overwrite a newer set or rest interval.
+    private func enqueuePersistence(_ workout: Workout) {
+        let previous = pendingPersistence
+        pendingPersistence = Task { [workoutRepository] in
+            await previous?.value
+            do { _ = try await workoutRepository.save(workout) }
+            catch { print("[WatchWorkoutVM] Save failed: \(error)") }
+        }
+    }
+
+    private func persistNow(_ workout: Workout) async throws {
+        await pendingPersistence?.value
+        _ = try await workoutRepository.save(workout)
+    }
+
+    public func restoreActiveWorkout() async {
+        guard activeWorkout == nil else { return }
+        do {
+            guard let restored = try await workoutRepository.fetchActive() else { return }
+            activeWorkout = restored
+            currentExerciseIndex = restored.exercises.firstIndex {
+                $0.sets.contains(where: { !$0.isFullyCompleted })
+            } ?? 0
+            isQuickStart = restored.templateId == nil
+            isActive = true
+            connectivityManager.sendWorkoutSnapshot(restored)
+        } catch {
+            print("[WatchWorkoutVM] Recovery failed: \(error)")
+        }
     }
 
     // MARK: - Computed Properties
@@ -378,7 +412,7 @@ public final class WatchWorkoutViewModel {
         set.applySideSets(sides)
         workout.exercises[currentExerciseIndex].sets[index] = set
         activeWorkout = workout
-        _ = try await workoutRepository.save(workout)
+        try await persistNow(workout)
         connectivityManager.sendWorkoutSnapshot(workout)
         if set.isFullyCompleted {
             viewingSetIndex = nil; pendingSetType = .normal
@@ -386,7 +420,7 @@ public final class WatchWorkoutViewModel {
         }
     }
 
-    public func logSet(weight: Double?, reps: Int?, rpe: Double? = nil) async throws {
+    public func logSet(weight: Double?, reps: Int?, rpe: Double? = nil, detectedReps: Int? = nil) async throws {
         guard var workout = activeWorkout else {
             throw WorkoutError.noActiveWorkout
         }
@@ -401,6 +435,7 @@ public final class WatchWorkoutViewModel {
         if let incompleteIndex = workout.exercises[currentExerciseIndex].sets.firstIndex(where: { !$0.isFullyCompleted }) {
             workout.exercises[currentExerciseIndex].sets[incompleteIndex].weight = weight
             workout.exercises[currentExerciseIndex].sets[incompleteIndex].reps = reps
+            workout.exercises[currentExerciseIndex].sets[incompleteIndex].detectedReps = detectedReps
             workout.exercises[currentExerciseIndex].sets[incompleteIndex].applyRPE(rpe)
             // Re-assert failure defaults in case a nil RPE cleared them just above.
             if workout.exercises[currentExerciseIndex].sets[incompleteIndex].isFailure {
@@ -422,7 +457,8 @@ public final class WatchWorkoutViewModel {
                 rpe: nil,
                 isCompleted: true,
                 isPersonalRecord: false,
-                completedAt: Date()
+                completedAt: Date(),
+                detectedReps: detectedReps
             )
             newSet.applyRPE(rpe)
             // Watch still marks failure via the set-type cycle — carry the per-set flag
@@ -434,6 +470,8 @@ public final class WatchWorkoutViewModel {
         activeWorkout = workout
         viewingSetIndex = nil
         pendingSetType = .normal
+
+        try await persistNow(workout)
 
         // Send live snapshot to iPhone
         connectivityManager.sendWorkoutSnapshot(workout)
@@ -459,6 +497,8 @@ public final class WatchWorkoutViewModel {
         }
 
         activeWorkout = workout
+        enqueuePersistence(workout)
+        connectivityManager.sendWorkoutSnapshot(workout)
     }
 
     public func removeSetFromCurrentExercise(at setIndex: Int) {
@@ -478,12 +518,14 @@ public final class WatchWorkoutViewModel {
             throw WorkoutError.noActiveWorkout
         }
 
+        stopRestTimer()
+        await pendingPersistence?.value
+        workout = activeWorkout ?? workout
         workout.completedAt = Date()
         if !workoutNotes.isEmpty {
             workout.notes = workoutNotes
         }
         var saved = try await workoutRepository.save(workout)
-        stopRestTimer()
 
         // End HealthKit workout session BEFORE setting isActive = false.
         do {
@@ -613,19 +655,23 @@ public final class WatchWorkoutViewModel {
                 workout.exercises[currentExerciseIndex].sets[idx].setFailureFlag(true)
             }
             activeWorkout = workout
+            enqueuePersistence(workout)
+            connectivityManager.sendWorkoutSnapshot(workout)
         } else if let incompleteIdx = workout.exercises[currentExerciseIndex].sets.firstIndex(where: { !$0.isFullyCompleted }) {
             workout.exercises[currentExerciseIndex].sets[incompleteIdx].setType = setType
             if setType == .failure {
                 workout.exercises[currentExerciseIndex].sets[incompleteIdx].setFailureFlag(true)
             }
             activeWorkout = workout
+            enqueuePersistence(workout)
+            connectivityManager.sendWorkoutSnapshot(workout)
         } else {
             // No set exists yet (quick-start) — store for next logSet()
             pendingSetType = setType
         }
     }
 
-    public func updateSet(weight: Double?, reps: Int?) {
+    public func updateSet(weight: Double?, reps: Int?) async throws {
         guard let idx = viewingSetIndex,
               var workout = activeWorkout,
               currentExerciseIndex < workout.exercises.count,
@@ -635,6 +681,8 @@ public final class WatchWorkoutViewModel {
         workout.exercises[currentExerciseIndex].sets[idx].reps = reps
         activeWorkout = workout
         viewingSetIndex = nil
+
+        try await persistNow(workout)
 
         // Send updated snapshot to iPhone
         connectivityManager.sendWorkoutSnapshot(workout)
@@ -663,6 +711,7 @@ public final class WatchWorkoutViewModel {
         isResting = true
         restTimeRemaining = restDuration
         restStartDate = Date()
+        restSetID = currentExercise?.sets.last(where: { $0.isFullyCompleted })?.id
         print("[WatchVM] rest started dur=\(restDuration) rem=\(restTimeRemaining)")
 
         // Write timer state for native watchOS widget (works without iPhone)
@@ -711,9 +760,24 @@ public final class WatchWorkoutViewModel {
 
     public func stopRestTimer() {
         print("[WatchVM] stopRestTimer")
+        if let start = restStartDate,
+           let setID = restSetID,
+           var workout = activeWorkout,
+           let exerciseIndex = workout.exercises.firstIndex(where: { exercise in
+               exercise.sets.contains(where: { $0.id == setID })
+           }),
+           let setIndex = workout.exercises[exerciseIndex].sets.firstIndex(where: { $0.id == setID }) {
+            let endedAt = Date()
+            workout.exercises[exerciseIndex].sets[setIndex].restDurationSeconds = max(0, endedAt.timeIntervalSince(start))
+            workout.exercises[exerciseIndex].sets[setIndex].restEndedAt = endedAt
+            activeWorkout = workout
+            enqueuePersistence(workout)
+            connectivityManager.sendWorkoutSnapshot(workout)
+        }
         restTimer?.invalidate()
         restTimer = nil
         restStartDate = nil
+        restSetID = nil
         isResting = false
         restTimeRemaining = 0
 

@@ -119,7 +119,7 @@ struct WatchSetInputView: View {
                             } catch { sideError = error.localizedDescription }
                         }
                     } else if viewModel.isEditingCompletedSet {
-                        viewModel.updateSet(weight: weightKg, reps: Int(reps))
+                        Task { try? await viewModel.updateSet(weight: weightKg, reps: Int(reps)) }
                     } else {
                         Task {
                             try? await viewModel.logSet(weight: weightKg, reps: Int(reps))
