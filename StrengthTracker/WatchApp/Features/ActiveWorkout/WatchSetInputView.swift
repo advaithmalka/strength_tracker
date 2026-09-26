@@ -97,21 +97,6 @@ struct WatchSetInputView: View {
                 }
             }
 
-            // Rest timer indicator (shows when resting)
-            if viewModel.isResting {
-                HStack(spacing: 4) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 11))
-                        .foregroundStyle(primaryYellow)
-                    Text("REST: \(viewModel.restTimerText)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.8))
-                        .tracking(2)
-                        .textCase(.uppercase)
-                }
-                .padding(.vertical, 2)
-            }
-
             Button {
                     // Convert the displayed value back to kg for storage.
                     if separateSides {

@@ -9,7 +9,6 @@ struct WatchActiveWorkoutView: View {
     @State private var exerciseListViewModel: ExerciseListViewModel
     @State private var selectedPage = 1
     @State private var showSetEditor = false
-    @State private var showRestTimer = false
     @State private var showSummary = false
     @State private var showExercisePicker = false
     @State private var isAddingExtraSet = false
@@ -26,17 +25,19 @@ struct WatchActiveWorkoutView: View {
 
     var body: some View {
         if let workout = viewModel.activeWorkout {
-            TabView(selection: $selectedPage) {
-                actionsPage.tag(0)
-                activePage(workout).tag(1)
-                exerciseListPage(workout).tag(2)
+            VStack(spacing: 0) {
+                if viewModel.isResting { restBanner }
+                TabView(selection: $selectedPage) {
+                    actionsPage.tag(0)
+                    activePage(workout).tag(1)
+                    exerciseListPage(workout).tag(2)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .automatic))
             }
-            .tabViewStyle(.page(indexDisplayMode: .automatic))
             .navigationBarBackButtonHidden()
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
                 if viewModel.isReviewingSet { showSetEditor = true }
-                else if viewModel.isResting { showRestTimer = true }
             }
             .onChange(of: viewModel.isReviewingSet) { _, reviewing in
                 if reviewing { selectedPage = 1; showSetEditor = true }
@@ -45,14 +46,9 @@ struct WatchActiveWorkoutView: View {
             .onChange(of: viewModel.isEditingCompletedSet) { _, editing in
                 if !editing && !viewModel.isReviewingSet { showSetEditor = false }
             }
-            .onChange(of: viewModel.isResting) { _, resting in
-                if resting && !showSetEditor { showRestTimer = true }
-                else { showRestTimer = false }
-            }
             .onChange(of: showSetEditor) { _, editing in
                 if !editing {
                     if !viewModel.isReviewingSet { viewModel.viewingSetIndex = nil }
-                    if viewModel.isResting { showRestTimer = true }
                 }
             }
             .onChange(of: viewModel.currentExerciseIndex) { _, _ in
@@ -60,9 +56,6 @@ struct WatchActiveWorkoutView: View {
             }
             .sheet(isPresented: $showSetEditor) {
                 setEditor
-            }
-            .sheet(isPresented: $showRestTimer) {
-                WatchRestTimerView(viewModel: viewModel)
             }
             .sheet(isPresented: $showSummary) {
                 WorkoutSummaryView(workout: workout, viewModel: viewModel)
@@ -106,7 +99,7 @@ struct WatchActiveWorkoutView: View {
                     if !viewModel.isResting && !viewModel.isPaused {
                         viewModel.startRestTimer(force: true)
                     }
-                    showRestTimer = true
+                    selectedPage = 1
                 }
                 .disabled(viewModel.isPaused && !viewModel.isResting)
                 actionButton("End", icon: "stop.fill", color: .red.opacity(0.32)) {
@@ -143,6 +136,39 @@ struct WatchActiveWorkoutView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var restBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "timer")
+                .font(.system(size: 13, weight: .semibold))
+            Text("REST")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(1)
+            Spacer(minLength: 0)
+            Text(viewModel.restTimerText)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
+            Button {
+                viewModel.skipRestTimer()
+            } label: {
+                Image(systemName: "forward.end.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isPaused)
+            .accessibilityLabel("Skip rest")
+        }
+        .foregroundStyle(primaryYellow)
+        .padding(.leading, 10)
+        .padding(.trailing, 5)
+        .padding(.vertical, 4)
+        .background(primaryYellow.opacity(0.12))
+        .clipShape(Capsule())
+        .padding(.horizontal, 8)
     }
 
     private func activePage(_ workout: Workout) -> some View {
@@ -343,13 +369,16 @@ struct WatchActiveWorkoutView: View {
 
     private var setEditor: some View {
         ScrollView {
-            WatchSetInputView(
-                viewModel: viewModel,
-                targetWeight: viewModel.viewingSetWeight,
-                targetReps: viewModel.isReviewingSet && (viewModel.reviewDetectedReps ?? 0) > 0
-                    ? viewModel.reviewDetectedReps : viewModel.viewingSetReps
-            )
-            .id(viewModel.isEditingCompletedSet ? "edit-\(viewModel.viewingSetIndex ?? 0)" : "review-\(viewModel.currentSetNumber)")
+            VStack(spacing: 7) {
+                if viewModel.isResting { restBanner }
+                WatchSetInputView(
+                    viewModel: viewModel,
+                    targetWeight: viewModel.viewingSetWeight,
+                    targetReps: viewModel.isReviewingSet && (viewModel.reviewDetectedReps ?? 0) > 0
+                        ? viewModel.reviewDetectedReps : viewModel.viewingSetReps
+                )
+                .id(viewModel.isEditingCompletedSet ? "edit-\(viewModel.viewingSetIndex ?? 0)" : "review-\(viewModel.currentSetNumber)")
+            }
             .padding(.horizontal, 8)
         }
     }
