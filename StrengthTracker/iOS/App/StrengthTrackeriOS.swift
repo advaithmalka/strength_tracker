@@ -47,6 +47,14 @@ struct StrengthTrackeriOSApp: App {
         do {
             container = try AppContainer()
 
+            container.exerciseSeeder.startSeeding()
+            container.templateSeedService.startSeeding()
+
+            container.connectivityManager.onSessionReady = { [weak container] in
+                guard let container else { return }
+                Task { @MainActor in await syncWatchCatalog(container) }
+            }
+
             // Initialize WatchConnectivity
             #if canImport(WatchConnectivity)
             if WCSession.isSupported() {
@@ -55,9 +63,6 @@ struct StrengthTrackeriOSApp: App {
                 session.activate()
             }
             #endif
-
-            container.exerciseSeeder.startSeeding()
-            container.templateSeedService.startSeeding()
 
             // One-time effective-load migration once the library carries factors
             Task { [container] in
@@ -224,30 +229,7 @@ struct ContentViewWrapper: View {
                     await refreshWidgetData()
                 }
 
-                // Sync templates, exercises, settings, and planned sessions to Watch when app becomes active
-                Task { @MainActor in
-                    do {
-                        let allTemplates = try await container.templateRepository.fetchAll()
-                        // Only sync user-created templates to Watch (not seed/library templates)
-                        let exercises = try await container.exerciseRepository.fetchAll()
-                        container.connectivityManager.syncTemplates(allTemplates.filter { $0.isCustom }.map { $0.resolvingBodyweight(from: exercises) })
-                        container.connectivityManager.syncExercises(exercises)
-
-                        await container.syncActivePlanToWatch()
-                    } catch {
-                        print("[iOS Sync] Failed to sync data on activation: \(error)")
-                    }
-
-                    let prefs = container.userPreferencesService
-                    container.connectivityManager.syncSettings([
-                        "defaultRestSeconds": prefs.defaultRestSeconds,
-                        "weightUnit": prefs.weightUnit.rawValue,
-                        "autoStartRestTimer": prefs.autoStartRestTimer,
-                        "distanceUnit": prefs.distanceUnit.rawValue,
-                        "bodyWeightKg": prefs.bodyWeightKg ?? 0,
-                        "debugMotionRecordingEnabled": prefs.debugMotionRecordingEnabled
-                    ])
-                }
+                Task { @MainActor in await syncWatchCatalog(container) }
             }
         }
     }
@@ -288,5 +270,32 @@ struct ContentViewWrapper: View {
         await container.widgetRefreshService.refresh()
     }
 
+}
+
+@MainActor
+private func syncWatchCatalog(_ container: AppContainer) async {
+    await container.templateSeedService.ensureSeeded()
+
+    do {
+        let allTemplates = try await container.templateRepository.fetchAll()
+        let exercises = try await container.exerciseRepository.fetchAll()
+        container.connectivityManager.syncTemplates(
+            allTemplates.filter(\.isCustom).map { $0.resolvingBodyweight(from: exercises) }
+        )
+        container.connectivityManager.syncExercises(exercises)
+        await container.syncActivePlanToWatch()
+    } catch {
+        print("[iOS Sync] Failed to sync Watch catalog: \(error)")
+    }
+
+    let prefs = container.userPreferencesService
+    container.connectivityManager.syncSettings([
+        "defaultRestSeconds": prefs.defaultRestSeconds,
+        "weightUnit": prefs.weightUnit.rawValue,
+        "autoStartRestTimer": prefs.autoStartRestTimer,
+        "distanceUnit": prefs.distanceUnit.rawValue,
+        "bodyWeightKg": prefs.bodyWeightKg ?? 0,
+        "debugMotionRecordingEnabled": prefs.debugMotionRecordingEnabled
+    ])
 }
 #endif

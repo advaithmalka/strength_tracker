@@ -17,6 +17,7 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
     public var onWorkoutReceived: ((Workout, [String: String]?) -> Void)?
     public var onSettingsReceived: (([String: Any]) -> Void)?
     public var onTemplatesReceived: (([WorkoutTemplate]) -> Void)?
+    public var onSessionReady: (() -> Void)?
     public var onPlannedSessionsReceived: (([PlannedSessionSync]) -> Void)?
     public var onWatchWorkoutSnapshot: ((Workout) -> Void)?
     public var onWatchWorkoutStarted: ((Workout) -> Void)?
@@ -338,12 +339,19 @@ extension ConnectivityManager: WCSessionDelegate {
         let activated = activationState == .activated
         Task { @MainActor in
             self.isReachable = reachable
-            if activated { self.flushWorkoutLiveState() }
+            if activated {
+                self.flushWorkoutLiveState()
+                self.onSessionReady?()
+            }
         }
     }
 
     // iOS only
     #if os(iOS)
+    nonisolated public func sessionWatchStateDidChange(_ session: WCSession) {
+        guard session.isWatchAppInstalled else { return }
+        Task { @MainActor in self.onSessionReady?() }
+    }
     nonisolated public func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated public func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
