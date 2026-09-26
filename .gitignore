@@ -74,3 +74,6 @@ fastlane/test_output
 
 # Local guides (root-level only — docs/APP_STORE_RELEASE_GUIDE.md is tracked)
 /APP_STORE_RELEASE_GUIDE.md
+
+# Local research drafts (keep curated docs and app plans tracked)
+/docs/research/11-exercise-inference-plan.md
