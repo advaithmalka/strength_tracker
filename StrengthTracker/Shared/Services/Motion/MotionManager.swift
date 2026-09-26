@@ -34,7 +34,13 @@ public final class MotionManager {
         guard manager.isDeviceMotionAvailable else { return }
         stop()
         manager.deviceMotionUpdateInterval = 1.0 / 50.0
-        manager.startDeviceMotionUpdates(to: queue) { [weak self] motion, _ in
+        manager.startDeviceMotionUpdates(to: queue, withHandler: makeMotionHandler(exerciseID: exerciseID, wristSide: wristSide))
+        #endif
+    }
+
+    #if os(watchOS)
+    private nonisolated func makeMotionHandler(exerciseID: UUID, wristSide: WristSide) -> CMDeviceMotionHandler {
+        { [weak self] motion, _ in
             guard let motion else { return }
             let sample = MotionSample(
                 recordedAt: Date(), exerciseID: exerciseID, wristSide: wristSide,
@@ -44,8 +50,8 @@ public final class MotionManager {
             )
             Task { @MainActor [weak self] in self?.onSample?(sample) }
         }
-        #endif
     }
+    #endif
 
     public func stop() {
         #if os(watchOS)
