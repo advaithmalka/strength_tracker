@@ -1068,6 +1068,7 @@ public final class WatchWorkoutViewModel {
         stopRestTimer()
 
         var duration = seconds
+            ?? currentExercise?.restTimerSeconds
             ?? userPreferencesService?.defaultRestSeconds
             ?? UserPreferencesService.defaultRestSecondsValue
         if activeWorkout?.isDeload == true {
@@ -1084,6 +1085,50 @@ public final class WatchWorkoutViewModel {
         scheduleRestNotification(after: TimeInterval(duration))
         scheduleRestTicker()
         publishLiveState()
+    }
+
+    /// Adjust this countdown and use the new duration for later sets of its exercise.
+    public func adjustRestTimer(by seconds: Int) {
+        guard isResting, seconds != 0 else { return }
+        let elapsed = restStartDate.map { Date().timeIntervalSince($0) } ?? 0
+        let remaining = isPaused ? restTimeRemaining : max(0, restDuration - elapsed)
+        let adjustedRemaining = max(0, remaining + TimeInterval(seconds))
+        let appliedChange = adjustedRemaining - remaining
+        guard appliedChange != 0 else { return }
+
+        restDuration += appliedChange
+        restTimeRemaining = adjustedRemaining
+
+        if var workout = activeWorkout {
+            let exerciseIndex = restSetID.flatMap { setID in
+                workout.exercises.firstIndex { exercise in
+                    exercise.sets.contains { $0.id == setID }
+                }
+            } ?? currentExerciseIndex
+            if workout.exercises.indices.contains(exerciseIndex) {
+                let duration = Int(restDuration.rounded())
+                if workout.isDeload {
+                    let percentage = max(1, workout.deloadRestPercentage ?? userPreferencesService?.deloadRestPercentage ?? 75)
+                    workout.exercises[exerciseIndex].restTimerSeconds = (duration * 100 + percentage - 1) / percentage
+                } else {
+                    workout.exercises[exerciseIndex].restTimerSeconds = duration
+                }
+                activeWorkout = workout
+                enqueuePersistence(workout)
+                connectivityManager.sendWorkoutSnapshot(workout)
+            }
+        }
+
+        if adjustedRemaining == 0 {
+            restTimerCompleted()
+        } else {
+            if !isPaused {
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["watch-rest-timer"])
+                scheduleRestNotification(after: adjustedRemaining)
+                updateRestWidget(remaining: adjustedRemaining)
+            }
+            publishLiveState()
+        }
     }
 
     private func updateRestWidget(remaining: TimeInterval) {

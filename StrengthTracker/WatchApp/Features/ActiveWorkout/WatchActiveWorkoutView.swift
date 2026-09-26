@@ -9,6 +9,7 @@ struct WatchActiveWorkoutView: View {
     @State private var exerciseListViewModel: ExerciseListViewModel
     @State private var selectedPage = 1
     @State private var showSetEditor = false
+    @State private var showRestTimer = false
     @State private var showSummary = false
     @State private var showExercisePicker = false
     @State private var isAddingExtraSet = false
@@ -54,8 +55,14 @@ struct WatchActiveWorkoutView: View {
             .onChange(of: viewModel.currentExerciseIndex) { _, _ in
                 isAddingExtraSet = false
             }
+            .onChange(of: viewModel.isResting) { _, resting in
+                if !resting { showRestTimer = false }
+            }
             .sheet(isPresented: $showSetEditor) {
                 setEditor
+            }
+            .sheet(isPresented: $showRestTimer) {
+                WatchRestTimerView(viewModel: viewModel)
             }
             .sheet(isPresented: $showSummary) {
                 WorkoutSummaryView(workout: workout, viewModel: viewModel)
@@ -95,11 +102,11 @@ struct WatchActiveWorkoutView: View {
                 actionButton("Add", icon: "plus", color: primaryYellow, darkText: true) {
                     showExercisePicker = true
                 }
-                actionButton("Rest Timer", icon: "timer", color: .white.opacity(0.17)) {
+                actionButton("Timer", icon: "timer", color: .white.opacity(0.17)) {
                     if !viewModel.isResting && !viewModel.isPaused {
                         viewModel.startRestTimer(force: true)
                     }
-                    selectedPage = 1
+                    if viewModel.isResting { showRestTimer = true }
                 }
                 .disabled(viewModel.isPaused && !viewModel.isResting)
                 actionButton("End", icon: "stop.fill", color: .red.opacity(0.32)) {
@@ -140,15 +147,19 @@ struct WatchActiveWorkoutView: View {
 
     private var restBanner: some View {
         HStack(spacing: 8) {
-            Image(systemName: "timer")
-                .font(.system(size: 13, weight: .semibold))
-            Text("REST")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(1)
-            Spacer(minLength: 0)
-            Text(viewModel.restTimerText)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .monospacedDigit()
+            Button { showRestTimer = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 13, weight: .semibold))
+                    Spacer(minLength: 0)
+                    Text(viewModel.restTimerText)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Timer, \(viewModel.restTimerText). Double tap to adjust")
             Button {
                 viewModel.skipRestTimer()
             } label: {
