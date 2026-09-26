@@ -3,8 +3,12 @@ import StrengthTrackerShared
 
 struct WatchSetInputView: View {
     @State private var viewModel: WatchWorkoutViewModel
-    @State private var weight: Double = 20.0
-    @State private var reps: Double = 10.0
+    @State private var weightSteps: Int = 8
+    @State private var reps: Int = 10
+    @State private var weightCrownPosition = 0
+    @State private var repsCrownPosition = 0
+    @State private var weightCrownAnchor = 0
+    @State private var repsCrownAnchor = 0
     @State private var separateSides = false
     @State private var selectedSide: BodySide = .left
     @State private var sideError: String?
@@ -15,28 +19,37 @@ struct WatchSetInputView: View {
     }
 
     private let weightUnit: WeightUnit
-    private var weightStep: Double { weightUnit == .lbs ? 2.5 : 2.5 / WeightUnit.lbsPerKg }
+    private let poundsPerStep = 2.5
+    private let crownDetentsPerStep = 4
+    private let maximumWeightSteps = 440
+    private var weightKg: Double { Double(weightSteps) * poundsPerStep / WeightUnit.lbsPerKg }
+    private var weightText: String {
+        let pounds = Double(weightSteps) * poundsPerStep
+        return weightUnit == .lbs ? String(format: "%g", pounds) : String(format: "%.1f", weightUnit.fromKg(weightKg))
+    }
     private var weightLabel: String { separateSides ? viewModel.currentExercise?.exercise.strengthRecording?.sideWeightLabel(weightUnit) ?? weightUnit.symbol : viewModel.currentExercise?.exercise.weightEntryLabel(weightUnit) ?? weightUnit.symbol }
 
     init(viewModel: WatchWorkoutViewModel, targetWeight: Double? = nil, targetReps: Int? = nil) {
         let prefs = UserPreferencesService()
         self._viewModel = State(initialValue: viewModel)
-        // targetWeight is stored in kg; the crown/steppers operate in the display unit.
-        self._weight = State(initialValue: targetWeight.map { prefs.weightUnit.fromKg($0) } ?? 20.0)
-        self._reps = State(initialValue: Double(targetReps ?? prefs.defaultReps))
+        // Keep the input on a 2.5 lb grid, including weights restored from storage.
+        let startingPounds = targetWeight.map { $0 * WeightUnit.lbsPerKg }
+            ?? (prefs.weightUnit == .lbs ? 20.0 : 20.0 * WeightUnit.lbsPerKg)
+        self._weightSteps = State(initialValue: min(440, max(0, Int((startingPounds / 2.5).rounded()))))
+        self._reps = State(initialValue: targetReps ?? prefs.defaultReps)
         self.weightUnit = prefs.weightUnit
     }
 
     private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
     private let cardBackground = Color.white.opacity(0.1)
-    private let labelColor = Color.white.opacity(0.4)
+    private let labelColor = Color.white.opacity(0.75)
     private let secondaryText = Color.white.opacity(0.6)
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 7) {
             if viewModel.isReviewingSet {
-                Text(viewModel.reviewDetectedReps.map { "Detected \($0) reps · adjust below" }
-                     ?? "Set ended · enter reps and weight")
+                Text(viewModel.reviewDetectedReps.map { "Detected \($0) reps" }
+                     ?? "Review set")
                     .font(.caption2)
                     .foregroundStyle(secondaryText)
             }
@@ -52,33 +65,45 @@ struct WatchSetInputView: View {
                 } else { Text(recording.summary).font(.caption2).foregroundStyle(secondaryText) }
             }
             if let sideError { Text(sideError).font(.caption2).foregroundStyle(.red) }
-            // Weight / Reps grid
-            HStack(spacing: 4) {
-                // Weight card
-                inputCard(
-                    label: weightLabel,
-                    value: weightUnit == .lbs ? String(format: "%g", weight) : String(format: "%.1f", weight),
-                    isFocused: focusedField == .weight,
-                    onTap: { focusedField = .weight },
-                    onDecrement: { weight = max(0, weight - weightStep) },
-                    onIncrement: { weight += weightStep }
-                )
-                .focusable()
-                .focused($focusedField, equals: .weight)
-                .digitalCrownRotation($weight, from: 0, through: weightUnit == .kg ? 500 : 1100, by: weightStep)
-
-                // Reps card
+            // One large value per row, with controls that are easy to hit on Watch.
+            VStack(spacing: 8) {
                 inputCard(
                     label: separateSides ? "Reps/side" : viewModel.currentExercise?.exercise.repetitionsLabel ?? "Reps",
-                    value: "\(Int(reps))",
+                    value: "\(reps)",
                     isFocused: focusedField == .reps,
                     onTap: { focusedField = .reps },
                     onDecrement: { reps = max(1, reps - 1) },
-                    onIncrement: { reps += 1 }
+                    onIncrement: { reps = min(100, reps + 1) }
                 )
                 .focusable()
                 .focused($focusedField, equals: .reps)
-                .digitalCrownRotation($reps, from: 1, through: 100, by: 1)
+                .digitalCrownRotation(detent: $repsCrownPosition, from: -4000, through: 4000,
+                                      by: 1, sensitivity: .low)
+                .onChange(of: repsCrownPosition) { _, position in
+                    let steps = (position - repsCrownAnchor) / crownDetentsPerStep
+                    guard steps != 0 else { return }
+                    reps = min(100, max(1, reps + steps))
+                    repsCrownAnchor += steps * crownDetentsPerStep
+                }
+
+                inputCard(
+                    label: weightLabel,
+                    value: weightText,
+                    isFocused: focusedField == .weight,
+                    onTap: { focusedField = .weight },
+                    onDecrement: { weightSteps = max(0, weightSteps - 1) },
+                    onIncrement: { weightSteps = min(maximumWeightSteps, weightSteps + 1) }
+                )
+                .focusable()
+                .focused($focusedField, equals: .weight)
+                .digitalCrownRotation(detent: $weightCrownPosition, from: -4000, through: 4000,
+                                      by: 1, sensitivity: .low)
+                .onChange(of: weightCrownPosition) { _, position in
+                    let steps = (position - weightCrownAnchor) / crownDetentsPerStep
+                    guard steps != 0 else { return }
+                    weightSteps = min(maximumWeightSteps, max(0, weightSteps + steps))
+                    weightCrownAnchor += steps * crownDetentsPerStep
+                }
             }
 
             // Rest timer indicator (shows when resting)
@@ -96,45 +121,25 @@ struct WatchSetInputView: View {
                 .padding(.vertical, 2)
             }
 
-            Spacer(minLength: 0)
-
-            // Action button row with set navigation
-            HStack(spacing: 6) {
-                // ◀ previous set
-                Button {
-                    viewModel.navigateToPreviousSet()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(viewModel.canNavigateToPreviousSet ? .white : .white.opacity(0.25))
-                        .frame(width: 30, height: 30)
-                        .background(Color.white.opacity(0.15))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!viewModel.canNavigateToPreviousSet)
-
-                // FINISH SET / UPDATE
-                Button {
+            Button {
                     // Convert the displayed value back to kg for storage.
-                    let weightKg = weightUnit.toKg(weight)
                     if separateSides {
                         Task {
                             do {
-                                try await viewModel.logSide(selectedSide, weight: weightKg, reps: Int(reps))
+                                try await viewModel.logSide(selectedSide, weight: weightKg, reps: reps)
                                 sideError = nil
                                 if let next = viewModel.visibleSet?.sideSets?.first(where: { !$0.effort.isCompleted }) { selectedSide = next.side; loadSide() }
                             } catch { sideError = error.localizedDescription }
                         }
                     } else if viewModel.isEditingCompletedSet {
-                        Task { try? await viewModel.updateSet(weight: weightKg, reps: Int(reps)) }
+                        Task { try? await viewModel.updateSet(weight: weightKg, reps: reps) }
                     } else {
                         Task {
-                            try? await viewModel.logSet(weight: weightKg, reps: Int(reps),
+                            try? await viewModel.logSet(weight: weightKg, reps: reps,
                                                         detectedReps: viewModel.reviewDetectedReps)
                         }
                     }
-                } label: {
+            } label: {
                     HStack(spacing: 4) {
                         Text(separateSides ? "LOG \(selectedSide.rawValue.uppercased())" : viewModel.isEditingCompletedSet ? "UPDATE" : "FINISH SET")
                             .font(.system(size: 12, weight: .black))
@@ -148,22 +153,7 @@ struct WatchSetInputView: View {
                     .background(primaryYellow)
                     .clipShape(Capsule())
                 }
-                .buttonStyle(.plain)
-
-                // ▶ next set
-                Button {
-                    viewModel.navigateToNextSet()
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(viewModel.canNavigateToNextSet ? .white : .white.opacity(0.25))
-                        .frame(width: 30, height: 30)
-                        .background(Color.white.opacity(0.15))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!viewModel.canNavigateToNextSet)
-            }
+            .buttonStyle(.plain)
         }
         .onAppear {
             // Keep Crown scrolling the page until the user taps a field.
@@ -178,11 +168,12 @@ struct WatchSetInputView: View {
 
     private func loadSide() {
         if let effort = viewModel.visibleSet?.sideSets?.first(where: { $0.side == selectedSide })?.effort {
-            weight = weightUnit.fromKg(effort.weight ?? 0); reps = Double(effort.reps ?? 8)
+            weightSteps = min(maximumWeightSteps, max(0, Int(((effort.weight ?? 0) * WeightUnit.lbsPerKg / poundsPerStep).rounded())))
+            reps = effort.reps ?? 8
         } else {
             let scale = viewModel.currentExercise?.exercise.strengthRecording?.sideWeightScale ?? 1
-            weight = weightUnit.fromKg((viewModel.currentTargetWeight ?? 0) * scale)
-            reps = Double(viewModel.currentExercise?.exercise.strengthReps(viewModel.currentTargetReps ?? 8) ?? 8)
+            weightSteps = min(maximumWeightSteps, max(0, Int(((viewModel.currentTargetWeight ?? 0) * scale * WeightUnit.lbsPerKg / poundsPerStep).rounded())))
+            reps = viewModel.currentExercise?.exercise.strengthReps(viewModel.currentTargetReps ?? 8) ?? 8
         }
     }
     @ViewBuilder
@@ -194,49 +185,45 @@ struct WatchSetInputView: View {
         onDecrement: @escaping () -> Void,
         onIncrement: @escaping () -> Void
     ) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(labelColor)
-                .tracking(1.5)
-
-            HStack(spacing: 0) {
+        HStack(spacing: 7) {
                 // Minus button
                 Button(action: onDecrement) {
                     Image(systemName: "minus")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(.white)
-                        .frame(width: 22, height: 22)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(4)
+                        .frame(width: 38, height: 46)
+                        .background(cardBackground)
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
 
                 // Value display
-                Text(value)
-                    .font(.system(size: 28, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(isFocused ? primaryYellow : .white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                    .frame(maxWidth: .infinity)
+                VStack(spacing: 0) {
+                    Text(value)
+                        .font(.system(size: 32, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(isFocused ? primaryYellow : .white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                    Text(label.uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(labelColor)
+                }
+                .frame(maxWidth: .infinity, minHeight: 49)
+                .background(cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 15))
 
                 // Plus button
                 Button(action: onIncrement) {
                     Image(systemName: "plus")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(.white)
-                        .frame(width: 22, height: 22)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(4)
+                        .frame(width: 38, height: 46)
+                        .background(cardBackground)
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-            }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 6)
-        .background(cardBackground)
-        .cornerRadius(16)
         .onTapGesture(perform: onTap)
     }
 }

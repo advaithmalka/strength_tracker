@@ -55,6 +55,12 @@ struct WatchRestTimerView: View {
 
             Spacer()
 
+            if viewModel.isPaused {
+                Text("PAUSED")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(primaryYellow)
+            }
+
             // Skip button
             Button {
                 #if os(watchOS)
@@ -76,6 +82,7 @@ struct WatchRestTimerView: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .disabled(viewModel.isPaused)
         }
         .padding()
         // Haptic feedback on timer completion is handled by WatchWorkoutViewModel.restTimerCompleted()

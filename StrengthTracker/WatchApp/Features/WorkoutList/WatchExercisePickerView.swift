@@ -6,11 +6,13 @@ struct WatchExercisePickerView: View {
     @State private var selectedExercises: [Exercise] = []
 
     let onStartWorkout: ([Exercise]) -> Void
+    let actionTitle: String
 
     private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
 
-    init(exerciseListViewModel: ExerciseListViewModel, onStartWorkout: @escaping ([Exercise]) -> Void) {
+    init(exerciseListViewModel: ExerciseListViewModel, actionTitle: String = "START", onStartWorkout: @escaping ([Exercise]) -> Void) {
         self._exerciseListViewModel = State(initialValue: exerciseListViewModel)
+        self.actionTitle = actionTitle
         self.onStartWorkout = onStartWorkout
     }
 
@@ -76,7 +78,7 @@ struct WatchExercisePickerView: View {
                     Button {
                         onStartWorkout(selectedExercises)
                     } label: {
-                        Text("START (\(selectedExercises.count))")
+                        Text("\(actionTitle) (\(selectedExercises.count))")
                             .font(.system(size: 12, weight: .black))
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)

@@ -9,4 +9,5 @@
 | Detected reps | The count produced by a motion detector before the lifter reviews it. |
 | Final reps | The count accepted by the lifter in the set review. This is the count used in workout history and progress. |
 | Rest interval | The time between saving a performed set and ending or skipping its rest countdown. |
+| Paused workout | An active workout temporarily stopped by the lifter; its elapsed time, motion detection, and rest countdown resume from where they stopped. |
 | Workout snapshot | A versioned copy of the Watch's active workout state sent to the iPhone for display. |

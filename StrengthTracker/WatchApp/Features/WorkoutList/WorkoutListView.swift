@@ -83,7 +83,7 @@ struct WorkoutListView: View {
                 get: { workoutViewModel.isActive },
                 set: { newValue in workoutViewModel.isActive = newValue }
             )) {
-                WatchActiveWorkoutView(viewModel: workoutViewModel)
+                WatchActiveWorkoutView(viewModel: workoutViewModel, exerciseListViewModel: exerciseListViewModel)
             }
             .sheet(isPresented: $showExercisePicker) {
                 WatchExercisePickerView(exerciseListViewModel: exerciseListViewModel) { exercises in

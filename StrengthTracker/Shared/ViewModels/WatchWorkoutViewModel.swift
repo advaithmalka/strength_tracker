@@ -11,6 +11,7 @@ public final class WatchWorkoutViewModel {
     public var activeWorkout: Workout? = nil
     public var currentExerciseIndex: Int = 0
     public var isActive = false
+    public var isPaused = false
     public var isQuickStart: Bool = false
     public var plannedSessionId: UUID? = nil
     public var plannedPlanId: UUID? = nil
@@ -61,6 +62,8 @@ public final class WatchWorkoutViewModel {
         bodyWeightProvider?.current ?? userPreferencesService?.bodyWeightKg ?? UserPreferencesService.defaultBodyWeightKg
     }
     private var restTimer: Timer?
+    private var pausedAt: Date?
+    private var pausedDuration: TimeInterval = 0
     private var restStartDate: Date?
     private var restSetID: UUID?
     private var pendingPersistence: Task<Void, Never>?
@@ -219,7 +222,7 @@ public final class WatchWorkoutViewModel {
         motionManager.onSample = nil
         preRoll = []
         periodDetector.reset()
-        guard isActive, !isResting, let exercise = currentExercise?.exercise else {
+        guard isActive, !isPaused, !isResting, let exercise = currentExercise?.exercise else {
             detector = nil
             return
         }
@@ -229,7 +232,7 @@ public final class WatchWorkoutViewModel {
     }
 
     private func handleMotionSample(_ sample: MotionSample) {
-        guard isActive, !isResting, !isReviewingSet,
+        guard isActive, !isPaused, !isResting, !isReviewingSet,
               sample.exerciseID == currentExercise?.exercise.id else { return }
         preRoll.append(sample)
         if preRoll.count > 100 { preRoll.removeFirst(preRoll.count - 100) }
@@ -271,7 +274,7 @@ public final class WatchWorkoutViewModel {
     }
 
     public func beginSetAttempt() {
-        guard isActive, !isResting, !isCollectingSet, !isReviewingSet,
+        guard isActive, !isPaused, !isResting, !isCollectingSet, !isReviewingSet,
               let exercise = currentExercise?.exercise else { return }
         isCollectingSet = true
         setAttemptStartedAt = Date()
@@ -285,7 +288,7 @@ public final class WatchWorkoutViewModel {
     }
 
     public func endSetAttempt() {
-        guard isCollectingSet else { return }
+        guard isCollectingSet, !isPaused else { return }
         setInactivityTimer?.invalidate()
         setInactivityTimer = nil
         lastSetActivityAt = nil
@@ -458,7 +461,71 @@ public final class WatchWorkoutViewModel {
 
     public var elapsedTime: TimeInterval {
         guard let workout = activeWorkout else { return 0 }
-        return Date().timeIntervalSince(workout.startedAt)
+        return (pausedAt ?? Date()).timeIntervalSince(workout.startedAt) - pausedDuration
+    }
+
+    public func pauseWorkout() {
+        guard isActive, !isPaused else { return }
+        isPaused = true
+        pausedAt = Date()
+        motionManager.stop()
+        setInactivityTimer?.invalidate()
+        setInactivityTimer = nil
+        if isResting {
+            if let restStartDate {
+                restTimeRemaining = max(0, restDuration - Date().timeIntervalSince(restStartDate))
+            }
+            restTimer?.invalidate()
+            restTimer = nil
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["watch-rest-timer"])
+            WidgetDataService().updateWatchRestTimerState(nil)
+        }
+        watchSessionManager?.pauseWorkoutSession()
+        publishLiveState()
+    }
+
+    public func resumeWorkout() {
+        guard isActive, isPaused else { return }
+        if let pausedAt { pausedDuration += Date().timeIntervalSince(pausedAt) }
+        pausedAt = nil
+        isPaused = false
+        watchSessionManager?.resumeWorkoutSession()
+        if isResting {
+            restStartDate = Date().addingTimeInterval(-(restDuration - restTimeRemaining))
+            scheduleRestTicker()
+            scheduleRestNotification(after: restTimeRemaining)
+            updateRestWidget(remaining: restTimeRemaining)
+        } else {
+            configureMotionForCurrentExercise()
+            if isCollectingSet { markSetActivity(at: Date()) }
+        }
+        publishLiveState()
+    }
+
+    public func addExercises(_ exercises: [Exercise]) async throws {
+        guard var workout = activeWorkout, isActive else { return }
+        let existing = Set(workout.exercises.map { $0.exercise.id })
+        for exercise in exercises where !existing.contains(exercise.id) {
+            workout.exercises.append(WorkoutExercise(
+                id: UUID(), exercise: exercise, order: workout.exercises.count + 1,
+                supersetGroup: nil, notes: nil, restTimerSeconds: nil, sets: []
+            ))
+        }
+        try await persistNow(workout)
+        activeWorkout = workout
+        connectivityManager.sendWorkoutSnapshot(workout)
+        publishLiveState()
+    }
+
+    public func selectExercise(at index: Int) {
+        guard let workout = activeWorkout, workout.exercises.indices.contains(index),
+              !isCollectingSet, !isReviewingSet else { return }
+        currentExerciseIndex = index
+        viewingSetIndex = nil
+        pendingSetType = .normal
+        saveSessionState()
+        configureMotionForCurrentExercise()
+        publishLiveState()
     }
 
     public var restTimerText: String {
@@ -477,6 +544,9 @@ public final class WatchWorkoutViewModel {
     /// Synchronous: builds workout, sets state, activates navigation immediately.
     /// Call from the same synchronous scope as sheet dismiss for batched rendering.
     public func prepareQuickStart(name: String, exercises: [Exercise]) {
+        isPaused = false
+        pausedAt = nil
+        pausedDuration = 0
         isQuickStart = true
         plannedSetsPerExercise = [:]
         targetWeightPerExercise = [:]
@@ -538,6 +608,9 @@ public final class WatchWorkoutViewModel {
     }
 
     public func startWorkout(name: String, from template: WorkoutTemplate, isDeload: Bool = false) async {
+        isPaused = false
+        pausedAt = nil
+        pausedDuration = 0
         let library: [Exercise]
         do { library = try await exerciseRepository?.fetchAll() ?? [] }
         catch { return }
@@ -983,10 +1056,11 @@ public final class WatchWorkoutViewModel {
     // MARK: - Rest Timer
 
     /// Start rest timer with optional per-exercise duration override
-    public func startRestTimer(seconds: Int? = nil) {
+    public func startRestTimer(seconds: Int? = nil, force: Bool = false) {
+        guard isActive, !isPaused else { return }
         print("[WatchVM] startRestTimer(seconds: \(String(describing: seconds)))")
         // Respect autoStartRestTimer preference
-        guard userPreferencesService?.autoStartRestTimer ?? true else {
+        guard force || (userPreferencesService?.autoStartRestTimer ?? true) else {
             print("[WatchVM] startRestTimer SKIPPED — autoStartRestTimer is false")
             return
         }
@@ -1006,22 +1080,22 @@ public final class WatchWorkoutViewModel {
         restSetID = currentExercise?.sets.last(where: { $0.isFullyCompleted })?.id
         print("[WatchVM] rest started dur=\(restDuration) rem=\(restTimeRemaining)")
 
-        // Write timer state for native watchOS widget (works without iPhone)
-        if let name = currentExercise?.exercise.name {
-            let widgetState = WatchRestTimerState(
-                exerciseName: name,
-                setNumber: currentSetNumber,
-                startDate: Date(),
-                endDate: Date().addingTimeInterval(TimeInterval(duration)),
-                totalSeconds: duration,
-                workoutID: activeWorkout?.id,
-                setID: restSetID
-            )
-            WidgetDataService().updateWatchRestTimerState(widgetState)
+        updateRestWidget(remaining: TimeInterval(duration))
+        scheduleRestNotification(after: TimeInterval(duration))
+        scheduleRestTicker()
+        publishLiveState()
+    }
 
-        }
+    private func updateRestWidget(remaining: TimeInterval) {
+        guard let name = currentExercise?.exercise.name else { return }
+        WidgetDataService().updateWatchRestTimerState(WatchRestTimerState(
+            exerciseName: name, setNumber: currentSetNumber,
+            startDate: restStartDate ?? Date(), endDate: Date().addingTimeInterval(remaining),
+            totalSeconds: Int(restDuration), workoutID: activeWorkout?.id, setID: restSetID
+        ))
+    }
 
-        // Schedule local notification for when timer completes (visible even when backgrounded)
+    private func scheduleRestNotification(after remaining: TimeInterval) {
         let notifContent = UNMutableNotificationContent()
         notifContent.title = "Rest Complete"
         notifContent.body = currentExercise.map { "Time for your next set of \($0.exercise.name)" }
@@ -1030,22 +1104,19 @@ public final class WatchWorkoutViewModel {
         notifContent.interruptionLevel = .active
         notifContent.relevanceScore = 1.0
         let trigger = UNTimeIntervalNotificationTrigger(
-            timeInterval: max(1, restDuration), repeats: false
+            timeInterval: max(1, remaining), repeats: false
         )
         let request = UNNotificationRequest(
             identifier: "watch-rest-timer", content: notifContent, trigger: trigger
         )
         UNUserNotificationCenter.current().add(request)
-
-        scheduleRestTicker()
-        publishLiveState()
     }
 
     private func scheduleRestTicker() {
         restTimer?.invalidate()
         restTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, let start = self.restStartDate else { return }
+                guard let self, !self.isPaused, let start = self.restStartDate else { return }
                 let elapsed = Date().timeIntervalSince(start)
                 let remaining = self.restDuration - elapsed
                 if remaining > 0 {

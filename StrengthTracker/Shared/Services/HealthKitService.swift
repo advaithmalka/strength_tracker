@@ -44,6 +44,8 @@ public protocol WatchWorkoutSessionManager: AnyObject {
 
     func requestAuthorization() async throws
     func startWorkoutSession() async throws
+    func pauseWorkoutSession()
+    func resumeWorkoutSession()
     func endWorkoutSession() async throws
     func discardWorkoutSession() async
 }

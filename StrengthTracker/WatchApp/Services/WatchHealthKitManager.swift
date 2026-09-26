@@ -87,6 +87,14 @@ public final class WatchHealthKitManager: NSObject, WatchWorkoutSessionManager, 
         workoutBuilder = nil
     }
 
+    public func pauseWorkoutSession() {
+        workoutSession?.pause()
+    }
+
+    public func resumeWorkoutSession() {
+        workoutSession?.resume()
+    }
+
     public func discardWorkoutSession() async {
         workoutSession?.end()
         workoutSession = nil

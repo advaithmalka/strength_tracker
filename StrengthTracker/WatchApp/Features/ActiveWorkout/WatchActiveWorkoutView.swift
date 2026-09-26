@@ -6,372 +6,351 @@ import WatchKit
 
 struct WatchActiveWorkoutView: View {
     @State private var viewModel: WatchWorkoutViewModel
-    @State private var selectedTab: Int = 0
+    @State private var exerciseListViewModel: ExerciseListViewModel
+    @State private var selectedPage = 1
+    @State private var showSetEditor = false
+    @State private var showRestTimer = false
+    @State private var showSummary = false
+    @State private var showExercisePicker = false
     @State private var isAddingExtraSet = false
+    @State private var actionError: String?
 
-    init(viewModel: WatchWorkoutViewModel) {
+    init(viewModel: WatchWorkoutViewModel, exerciseListViewModel: ExerciseListViewModel) {
         self._viewModel = State(initialValue: viewModel)
+        self._exerciseListViewModel = State(initialValue: exerciseListViewModel)
     }
 
     private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
     private let secondaryText = Color.white.opacity(0.6)
-    // Watch prefs sync from the phone into UserDefaults
     private let weightUnit = UserPreferencesService().weightUnit
 
     var body: some View {
         if let workout = viewModel.activeWorkout {
-            TabView(selection: $selectedTab) {
-                if !workout.exercises.isEmpty {
-                    exerciseView(workout)
-                        .tag(0)
-                }
-
-                // Rest timer tab (shown when resting)
-                if viewModel.isResting {
-                    WatchRestTimerView(viewModel: viewModel)
-                        .tag(1)
-                }
-
-                summaryTab(workout)
-                    .tag(viewModel.isResting ? 2 : 1)
+            TabView(selection: $selectedPage) {
+                actionsPage.tag(0)
+                activePage(workout).tag(1)
+                exerciseListPage(workout).tag(2)
             }
-            .tabViewStyle(.verticalPage)
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
             .navigationBarBackButtonHidden()
-            .onAppear { if viewModel.isResting { selectedTab = 1 } }
-            .onChange(of: viewModel.isResting) { _, isResting in
-                if isResting {
-                    // Auto-navigate to rest timer when it starts
-                    withAnimation {
-                        selectedTab = 1
-                    }
-                } else {
-                    // Return to exercise view when rest ends
-                    isAddingExtraSet = false
-                    withAnimation {
-                        selectedTab = 0
-                    }
+            .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                if viewModel.isReviewingSet { showSetEditor = true }
+                else if viewModel.isResting { showRestTimer = true }
+            }
+            .onChange(of: viewModel.isReviewingSet) { _, reviewing in
+                if reviewing { selectedPage = 1; showSetEditor = true }
+                else if !viewModel.isEditingCompletedSet { showSetEditor = false }
+            }
+            .onChange(of: viewModel.isEditingCompletedSet) { _, editing in
+                if !editing && !viewModel.isReviewingSet { showSetEditor = false }
+            }
+            .onChange(of: viewModel.isResting) { _, resting in
+                if resting && !showSetEditor { showRestTimer = true }
+                else { showRestTimer = false }
+            }
+            .onChange(of: showSetEditor) { _, editing in
+                if !editing {
+                    if !viewModel.isReviewingSet { viewModel.viewingSetIndex = nil }
+                    if viewModel.isResting { showRestTimer = true }
                 }
             }
-            .onChange(of: viewModel.currentExerciseIndex) {
+            .onChange(of: viewModel.currentExerciseIndex) { _, _ in
                 isAddingExtraSet = false
             }
+            .sheet(isPresented: $showSetEditor) {
+                setEditor
+            }
+            .sheet(isPresented: $showRestTimer) {
+                WatchRestTimerView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showSummary) {
+                WorkoutSummaryView(workout: workout, viewModel: viewModel)
+            }
+            .sheet(isPresented: $showExercisePicker) {
+                WatchExercisePickerView(exerciseListViewModel: exerciseListViewModel, actionTitle: "ADD") { exercises in
+                    Task {
+                        do {
+                            try await viewModel.addExercises(exercises)
+                            actionError = nil
+                            showExercisePicker = false
+                            selectedPage = 2
+                        } catch {
+                            actionError = error.localizedDescription
+                        }
+                    }
+                }
+            }
+            .alert("Could not add exercises", isPresented: Binding(
+                get: { actionError != nil },
+                set: { if !$0 { actionError = nil } }
+            )) {
+                Button("OK") { actionError = nil }
+            } message: {
+                Text(actionError ?? "Please try again.")
+            }
         }
     }
 
-    private func exerciseView(_ workout: Workout) -> some View {
-        VStack(spacing: 2) {
-            #if canImport(HealthKit) && os(watchOS)
-            // Compact metrics bar
-            WatchMetricsView(
-                heartRate: viewModel.heartRate,
-                activeCalories: viewModel.activeCalories,
-                elapsedTime: viewModel.healthKitElapsedTime
-            )
-            #endif
+    private var actionsPage: some View {
+        VStack(spacing: 8) {
+            Text(viewModel.isPaused ? "Workout paused" : "Workout actions")
+                .font(.system(size: 15, weight: .bold))
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            if viewModel.currentExerciseIndex < workout.exercises.count {
-                let current = workout.exercises[viewModel.currentExerciseIndex]
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                actionButton("Add", icon: "plus", color: primaryYellow, darkText: true) {
+                    showExercisePicker = true
+                }
+                actionButton("Rest Timer", icon: "timer", color: .white.opacity(0.17)) {
+                    if !viewModel.isResting && !viewModel.isPaused {
+                        viewModel.startRestTimer(force: true)
+                    }
+                    showRestTimer = true
+                }
+                .disabled(viewModel.isPaused && !viewModel.isResting)
+                actionButton("End", icon: "stop.fill", color: .red.opacity(0.32)) {
+                    showSummary = true
+                }
+                actionButton(viewModel.isPaused ? "Resume" : "Pause",
+                             icon: viewModel.isPaused ? "play.fill" : "pause.fill",
+                             color: primaryYellow.opacity(0.28)) {
+                    if viewModel.isPaused { viewModel.resumeWorkout() }
+                    else { viewModel.pauseWorkout() }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
+    }
 
-                // Exercise name + set info on one line
-                Text(current.exercise.name)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(primaryYellow)
+    private func actionButton(_ title: String, icon: String, color: Color,
+                              darkText: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 25, weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 54)
+                    .background(color)
+                    .clipShape(RoundedRectangle(cornerRadius: 25))
+                    .foregroundStyle(darkText ? .black : .white)
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-
-                if viewModel.isEditingCompletedSet, let idx = viewModel.viewingSetIndex {
-                    Text("Editing Set \(idx + 1)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(primaryYellow)
-                } else if viewModel.hasPlannedSets {
-                    Text("Set \(viewModel.currentSetNumber)/\(viewModel.plannedSets)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(secondaryText)
-                } else {
-                    Text("Set \(viewModel.currentSetNumber)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(secondaryText)
-                }
-
-                // A motion period or End Set always opens the editable review.
-                if viewModel.isReviewingSet || viewModel.isEditingCompletedSet {
-                    WatchSetInputView(
-                        viewModel: viewModel,
-                        targetWeight: viewModel.viewingSetWeight,
-                        targetReps: viewModel.isReviewingSet
-                            ? ((viewModel.reviewDetectedReps ?? 0) > 0
-                                ? viewModel.reviewDetectedReps : viewModel.viewingSetReps)
-                            : viewModel.viewingSetReps
-                    )
-                    .id(viewModel.isEditingCompletedSet ? "edit-\(viewModel.viewingSetIndex ?? 0)" : "review-\(viewModel.currentSetNumber)")
-                } else if viewModel.isCollectingSet || !viewModel.currentExercisePlannedSetsComplete || isAddingExtraSet {
-                    setPeriodControls
-                } else {
-                    exerciseCompletionView
-                }
-
-                // Exercise navigation + end workout
-                HStack(spacing: 12) {
-                    Button {
-                        viewModel.previousExercise()
-                    } label: {
-                        Image(systemName: "chevron.left.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(
-                                viewModel.currentExerciseIndex == 0
-                                    ? Color.white.opacity(0.2)
-                                    : Color.white.opacity(0.7)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.currentExerciseIndex == 0)
-
-                    Text("\(viewModel.currentExerciseIndex + 1)/\(workout.exercises.count)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(secondaryText)
-
-                    Button {
-                        viewModel.nextExercise()
-                    } label: {
-                        Image(systemName: "chevron.right.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(
-                                viewModel.currentExerciseIndex >= workout.exercises.count - 1
-                                    ? Color.white.opacity(0.2)
-                                    : Color.white.opacity(0.7)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.currentExerciseIndex >= workout.exercises.count - 1)
-
-                    Spacer(minLength: 0)
-
-                    Button {
-                        let next = viewModel.currentSetType.nextType
-                        viewModel.updateSetType(setType: next)
-                    } label: {
-                        Text(setTypeBadgeLabel)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(setTypeBadgeColor)
-                            .frame(width: 24, height: 24)
-                            .background(setTypeBadgeColor.opacity(0.2))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Logged sets list with swipe-to-delete and RPE display
-                if !current.sets.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(Array(current.sets.enumerated()), id: \.element.id) { index, set in
-                                setChip(set: set, index: index)
-                            }
-                        }
-                        .padding(.horizontal, 2)
-                    }
-                }
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 2)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 35).onEnded { gesture in
-                guard abs(gesture.translation.width) > abs(gesture.translation.height) * 1.5 else { return }
-                if gesture.translation.width < 0 { viewModel.nextExercise() }
-                else { viewModel.previousExercise() }
-            }
-        )
+        .buttonStyle(.plain)
     }
 
-    private var setPeriodControls: some View {
-        VStack(spacing: 8) {
-            if viewModel.isCollectingSet {
+    private func activePage(_ workout: Workout) -> some View {
+        ScrollView {
+            VStack(spacing: 7) {
+                #if canImport(HealthKit) && os(watchOS)
+                WatchMetricsView(heartRate: viewModel.heartRate,
+                                 activeCalories: viewModel.activeCalories,
+                                 elapsedTime: viewModel.healthKitElapsedTime)
+                #endif
+
+                if let current = viewModel.currentExercise {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(current.exercise.name)
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(primaryYellow)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("EXERCISE \(viewModel.currentExerciseIndex + 1) OF \(workout.exercises.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(1)
+                            .foregroundStyle(secondaryText)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    setCard
+
+                    if !current.sets.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 7) {
+                                ForEach(Array(current.sets.enumerated()), id: \.element.id) { index, set in
+                                    Button {
+                                        if set.isCompleted {
+                                            viewModel.viewingSetIndex = index
+                                            showSetEditor = true
+                                        }
+                                    } label: {
+                                        VStack(spacing: 2) {
+                                            Text(set.setType == .normal ? "S\(set.order)" : String(set.setType.rawValue.prefix(1)).uppercased())
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundStyle(secondaryText)
+                                            Text("\(weightUnit.formatValue(set.weight ?? 0)) × \(set.reps ?? 0)")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundStyle(.white)
+                                        }
+                                        .padding(7)
+                                        .background(Color.white.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    exerciseNavigation(workout)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+        }
+    }
+
+    private var setCard: some View {
+        VStack(spacing: 5) {
+            HStack {
+                Text(viewModel.isEditingCompletedSet ? "EDIT SET" : "SET \(viewModel.currentSetNumber)\(viewModel.hasPlannedSets ? "/\(viewModel.plannedSets)" : "")")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(secondaryText)
+                Spacer()
+                Button {
+                    viewModel.updateSetType(setType: viewModel.currentSetType.nextType)
+                } label: {
+                    Text(viewModel.currentSetType == .normal ? "NORMAL" : viewModel.currentSetType.rawValue.uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(primaryYellow)
+                }
+                .buttonStyle(.plain)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(viewModel.viewingSetReps.map { String($0) } ?? "—")
+                    .font(.system(size: 28, weight: .bold))
+                Text("REPS")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(secondaryText)
+                Spacer()
+                Text(viewModel.viewingSetWeight.map { weightUnit.format($0, decimals: 0) } ?? "—")
+                    .font(.system(size: 22, weight: .semibold))
+                    .minimumScaleFactor(0.65)
+            }
+            .monospacedDigit()
+
+            if viewModel.isPaused {
+                Text("Resume to continue this set")
+                    .font(.system(size: 12))
+                    .foregroundStyle(secondaryText)
+            } else if viewModel.isReviewingSet || viewModel.isEditingCompletedSet {
+                mainButton("REVIEW SET", icon: "pencil") { showSetEditor = true }
+            } else if viewModel.isCollectingSet {
                 Text(viewModel.canDetectCurrentExercise
                      ? "Lifting · \(viewModel.detectedRepCount) detected"
                      : "Lifting · enter reps after set")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12))
                     .foregroundStyle(secondaryText)
-                    .monospacedDigit()
-                Button("END SET") { viewModel.endSetAttempt() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(primaryYellow)
+                mainButton("END SET", icon: "checkmark") { viewModel.endSetAttempt() }
+            } else if viewModel.currentExercisePlannedSetsComplete && !isAddingExtraSet {
+                mainButton("ADD SET", icon: "plus") { isAddingExtraSet = true }
             } else {
-                Text("Move to start automatically")
-                    .font(.system(size: 11))
-                    .foregroundStyle(secondaryText)
-                Button("START SET") { viewModel.beginSetAttempt() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(primaryYellow)
+                mainButton("START SET", icon: "chevron.right") { viewModel.beginSetAttempt() }
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        .padding(8)
+        .background(Color.white.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 22))
     }
 
-    private var setTypeBadgeLabel: String {
-        switch viewModel.currentSetType {
-        case .normal: return "\(viewModel.currentSetNumber)"
-        case .warmup: return "W"
-        case .dropset: return "D"
-        case .failure: return "F"
-        case .restPause: return "R"
-        }
-    }
-
-    private var setTypeBadgeColor: Color {
-        switch viewModel.currentSetType {
-        case .normal: return .white
-        case .warmup: return .orange
-        case .dropset: return .purple
-        case .failure: return .red
-        case .restPause: return .blue
-        }
-    }
-
-    @ViewBuilder
-    private func setChip(set: ExerciseSet, index: Int) -> some View {
-        VStack(spacing: 1) {
-            Text(chipLabel(for: set))
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(chipLabelColor(for: set))
-            Text("\(weightUnit.formatValue(set.weight ?? 0))×\(set.reps ?? 0)")
-                .font(.system(size: 10, weight: .medium))
-                .monospacedDigit()
-                .foregroundStyle(.white)
-            // Show RPE if available (Task 5.3)
-            if let rpe = set.rpe {
-                Text("@\(String(format: "%.0f", rpe))")
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(primaryYellow)
-            }
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(viewModel.viewingSetIndex == index
-            ? primaryYellow.opacity(0.25)
-            : Color.white.opacity(0.08))
-        .cornerRadius(8)
-        .onTapGesture {
-            if set.isCompleted {
-                viewModel.viewingSetIndex = index
-            }
-        }
-        .onLongPressGesture {
-            // Swipe-to-delete alternative for Watch: long-press to delete
-            viewModel.removeSetFromCurrentExercise(at: index)
-        }
-    }
-
-    private func chipLabel(for set: ExerciseSet) -> String {
-        switch set.setType {
-        case .normal: return "S\(set.order)"
-        case .warmup: return "W"
-        case .dropset: return "D"
-        case .failure: return "F"
-        case .restPause: return "R"
-        }
-    }
-
-    private func chipLabelColor(for set: ExerciseSet) -> Color {
-        switch set.setType {
-        case .normal: return Color.white.opacity(0.5)
-        case .warmup: return .orange
-        case .dropset: return .purple
-        case .failure: return .red
-        case .restPause: return .blue
-        }
-    }
-
-    private var exerciseCompletionView: some View {
-        VStack(spacing: 8) {
-            let completedSets = viewModel.currentExercise?.sets.filter(\.isCompleted).count ?? 0
-            let volume = viewModel.currentExerciseVolume
-
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.green)
-                Text("\(completedSets) sets")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white)
-                if volume > 0 {
-                    Text("·")
-                        .foregroundStyle(secondaryText)
-                    Text(weightUnit.format(volume, decimals: 0))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(secondaryText)
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            if viewModel.isLastExercise {
-                Button {
-                    withAnimation {
-                        selectedTab = viewModel.isResting ? 2 : 1
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("FINISH WORKOUT")
-                            .font(.system(size: 13, weight: .black))
-                            .tracking(-0.5)
-                        Image(systemName: "flag.checkered")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.green)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            } else {
-                Button {
-                    #if os(watchOS)
-                    WKInterfaceDevice.current().play(.success)
-                    #endif
-                    viewModel.nextExercise()
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("NEXT EXERCISE")
-                            .font(.system(size: 13, weight: .black))
-                            .tracking(-0.5)
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(primaryYellow)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-
-            Button {
-                isAddingExtraSet = true
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
-                    Text("ADD SET")
-                        .font(.system(size: 12, weight: .bold))
-                }
-                .foregroundStyle(.white.opacity(0.7))
+    private func mainButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.black)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.1))
+                .padding(.vertical, 7)
+                .background(primaryYellow)
                 .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func exerciseNavigation(_ workout: Workout) -> some View {
+        HStack {
+            Button { viewModel.previousExercise() } label: {
+                Image(systemName: "chevron.left.circle.fill")
             }
-            .buttonStyle(.plain)
+            .disabled(viewModel.currentExerciseIndex == 0)
+            Spacer()
+            Button { selectedPage = 2 } label: {
+                Image(systemName: "list.bullet")
+                Text("Exercises")
+            }
+            Spacer()
+            Button { viewModel.nextExercise() } label: {
+                Image(systemName: "chevron.right.circle.fill")
+            }
+            .disabled(viewModel.currentExerciseIndex >= workout.exercises.count - 1)
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundStyle(.white)
+        .buttonStyle(.plain)
+    }
+
+    private func exerciseListPage(_ workout: Workout) -> some View {
+        ScrollView {
+            VStack(spacing: 9) {
+                Text("Exercises")
+                    .font(.system(size: 19, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                ForEach(Array(workout.exercises.enumerated()), id: \.element.id) { index, item in
+                    Button {
+                        viewModel.selectExercise(at: index)
+                        if viewModel.currentExerciseIndex == index { selectedPage = 1 }
+                    } label: {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(item.exercise.name)
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text("\(item.sets.filter(\.isFullyCompleted).count) sets logged")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(secondaryText)
+                            }
+                            Spacer(minLength: 2)
+                            if index == viewModel.currentExerciseIndex {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(primaryYellow)
+                            }
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(13)
+                        .background(Color.white.opacity(index == viewModel.currentExerciseIndex ? 0.17 : 0.09))
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Button { showExercisePicker = true } label: {
+                    Label("Add Exercise", systemImage: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(Color.white.opacity(0.14))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 5)
         }
     }
 
-    private func summaryTab(_ workout: Workout) -> some View {
-        WorkoutSummaryView(
-            workout: workout,
-            viewModel: viewModel
-        )
+    private var setEditor: some View {
+        ScrollView {
+            WatchSetInputView(
+                viewModel: viewModel,
+                targetWeight: viewModel.viewingSetWeight,
+                targetReps: viewModel.isReviewingSet && (viewModel.reviewDetectedReps ?? 0) > 0
+                    ? viewModel.reviewDetectedReps : viewModel.viewingSetReps
+            )
+            .id(viewModel.isEditingCompletedSet ? "edit-\(viewModel.viewingSetIndex ?? 0)" : "review-\(viewModel.currentSetNumber)")
+            .padding(.horizontal, 8)
+        }
     }
 }
