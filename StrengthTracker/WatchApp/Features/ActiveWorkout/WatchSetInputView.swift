@@ -7,8 +7,6 @@ struct WatchSetInputView: View {
     @State private var reps: Int = 10
     @State private var weightCrownPosition = 0
     @State private var repsCrownPosition = 0
-    @State private var weightCrownAnchor = 0
-    @State private var repsCrownAnchor = 0
     @State private var separateSides = false
     @State private var selectedSide: BodySide = .left
     @State private var sideError: String?
@@ -20,8 +18,6 @@ struct WatchSetInputView: View {
 
     private let weightUnit: WeightUnit
     private let poundsPerStep = 2.5
-    // Five half-detents per value change gives an average of 2.5 Crown ticks.
-    private let crownHalfDetentsPerStep = 5
     private let maximumWeightSteps = 440
     private var weightKg: Double { Double(weightSteps) * poundsPerStep / WeightUnit.lbsPerKg }
     private var weightText: String {
@@ -80,11 +76,8 @@ struct WatchSetInputView: View {
                 .focused($focusedField, equals: .reps)
                 .digitalCrownRotation(detent: $repsCrownPosition, from: -4000, through: 4000,
                                       by: 1, sensitivity: .low)
-                .onChange(of: repsCrownPosition) { _, position in
-                    let steps = (position * 2 - repsCrownAnchor) / crownHalfDetentsPerStep
-                    guard steps != 0 else { return }
-                    reps = min(100, max(1, reps + steps))
-                    repsCrownAnchor += steps * crownHalfDetentsPerStep
+                .onChange(of: repsCrownPosition) { previous, position in
+                    reps = min(100, max(1, reps + position - previous))
                 }
 
                 inputCard(
@@ -99,11 +92,8 @@ struct WatchSetInputView: View {
                 .focused($focusedField, equals: .weight)
                 .digitalCrownRotation(detent: $weightCrownPosition, from: -4000, through: 4000,
                                       by: 1, sensitivity: .low)
-                .onChange(of: weightCrownPosition) { _, position in
-                    let steps = (position * 2 - weightCrownAnchor) / crownHalfDetentsPerStep
-                    guard steps != 0 else { return }
-                    weightSteps = min(maximumWeightSteps, max(0, weightSteps + steps))
-                    weightCrownAnchor += steps * crownHalfDetentsPerStep
+                .onChange(of: weightCrownPosition) { previous, position in
+                    weightSteps = min(maximumWeightSteps, max(0, weightSteps + position - previous))
                 }
             }
 
