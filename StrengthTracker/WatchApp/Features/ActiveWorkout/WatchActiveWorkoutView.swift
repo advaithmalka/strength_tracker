@@ -238,6 +238,8 @@ struct WatchActiveWorkoutView: View {
             }
             .padding(.horizontal, 8)
             .padding(.top, 4)
+            // Page dots and the rounded watch edge cover the bottom of TabView.
+            .padding(.bottom, 64)
         }
     }
 
@@ -375,6 +377,7 @@ struct WatchActiveWorkoutView: View {
             }
             .padding(.horizontal, 8)
             .padding(.top, 5)
+            .padding(.bottom, 64)
         }
     }
 
