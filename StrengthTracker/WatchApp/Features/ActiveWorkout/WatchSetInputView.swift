@@ -20,7 +20,8 @@ struct WatchSetInputView: View {
 
     private let weightUnit: WeightUnit
     private let poundsPerStep = 2.5
-    private let crownDetentsPerStep = 4
+    // Five half-detents per value change gives an average of 2.5 Crown ticks.
+    private let crownHalfDetentsPerStep = 5
     private let maximumWeightSteps = 440
     private var weightKg: Double { Double(weightSteps) * poundsPerStep / WeightUnit.lbsPerKg }
     private var weightText: String {
@@ -80,10 +81,10 @@ struct WatchSetInputView: View {
                 .digitalCrownRotation(detent: $repsCrownPosition, from: -4000, through: 4000,
                                       by: 1, sensitivity: .low)
                 .onChange(of: repsCrownPosition) { _, position in
-                    let steps = (position - repsCrownAnchor) / crownDetentsPerStep
+                    let steps = (position * 2 - repsCrownAnchor) / crownHalfDetentsPerStep
                     guard steps != 0 else { return }
                     reps = min(100, max(1, reps + steps))
-                    repsCrownAnchor += steps * crownDetentsPerStep
+                    repsCrownAnchor += steps * crownHalfDetentsPerStep
                 }
 
                 inputCard(
@@ -99,10 +100,10 @@ struct WatchSetInputView: View {
                 .digitalCrownRotation(detent: $weightCrownPosition, from: -4000, through: 4000,
                                       by: 1, sensitivity: .low)
                 .onChange(of: weightCrownPosition) { _, position in
-                    let steps = (position - weightCrownAnchor) / crownDetentsPerStep
+                    let steps = (position * 2 - weightCrownAnchor) / crownHalfDetentsPerStep
                     guard steps != 0 else { return }
                     weightSteps = min(maximumWeightSteps, max(0, weightSteps + steps))
-                    weightCrownAnchor += steps * crownDetentsPerStep
+                    weightCrownAnchor += steps * crownHalfDetentsPerStep
                 }
             }
 
