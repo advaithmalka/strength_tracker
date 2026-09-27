@@ -96,6 +96,69 @@ struct WatchWorkoutViewModelTests {
         #expect(vm.currentExerciseIndex == 1)
     }
 
+    @Test("Selecting another exercise leaves an unfinished set")
+    func selectWhileCollecting() async {
+        let (vm, _) = makeViewModel()
+        await vm.startWorkout(name: "Push", from: makeTemplateFrom([makeExercise(name: "A"), makeExercise(name: "B")]))
+        vm.beginSetAttempt()
+        #expect(vm.isCollectingSet)
+        vm.selectExercise(at: 1)
+        #expect(vm.currentExerciseIndex == 1)
+        #expect(!vm.isCollectingSet)
+        #expect(!vm.isReviewingSet)
+    }
+
+    @Test("Confirming the last planned set selects the next exercise")
+    func advancesAfterPlannedSets() async throws {
+        let (vm, _) = makeViewModel()
+        await vm.startWorkout(name: "Push", from: makeTemplateFrom([makeExercise(name: "A"), makeExercise(name: "B")]))
+        try await vm.logSet(weight: 80, reps: 10)
+        #expect(vm.currentExerciseIndex == 0)
+        try await vm.logSet(weight: 80, reps: 10)
+        #expect(vm.currentExerciseIndex == 0)
+        try await vm.logSet(weight: 80, reps: 10)
+        #expect(vm.currentExerciseIndex == 1)
+        #expect(vm.activeWorkout?.exercises[0].sets.filter(\.isFullyCompleted).count == 3)
+        vm.skipRestTimer()
+    }
+
+    @Test("Workout duration starts from creation")
+    func durationStartsAtCreation() async {
+        let (vm, _) = makeViewModel()
+        await vm.startWorkout(name: "Push", from: makeTemplateFrom([makeExercise()]))
+        vm.activeWorkout?.startedAt = Date().addingTimeInterval(-10)
+        #expect(vm.elapsedTime >= 9)
+    }
+
+    @Test("Developer can explicitly start and stop exercise recording")
+    func developerRecordingControl() async throws {
+        UserDefaults.standard.set(true, forKey: "debugMotionRecordingEnabled")
+        defer { UserDefaults.standard.removeObject(forKey: "debugMotionRecordingEnabled") }
+        let (vm, _) = makeViewModel()
+        await vm.startWorkout(name: "Push", from: makeTemplateFrom([makeExercise()]))
+        #expect(vm.canRecordDeveloperMotion)
+        vm.startDeveloperRecording()
+        #expect(vm.isDeveloperRecording)
+        vm.stopDeveloperRecording()
+        #expect(!vm.isDeveloperRecording)
+        #expect(vm.isReviewingSet)
+        try await vm.logSet(weight: 20, reps: 8)
+        #expect(!vm.isReviewingSet)
+        #expect(vm.activeWorkout?.exercises[0].sets[0].reps == 8)
+    }
+
+    @Test("Live heart rate comes from the Watch session")
+    func heartRateUpdates() async {
+        let (vm, _) = makeViewModel()
+        let session = TestWatchSessionManager()
+        vm.setWatchSessionManager(session)
+        await vm.startWorkout(name: "Push", from: makeTemplateFrom([makeExercise()]))
+        session.heartRate = 126
+        #expect(vm.heartRate == 126)
+        session.heartRate = 132
+        #expect(vm.heartRate == 132)
+    }
+
     @Test("nextExercise does not go past last exercise")
     func nextExerciseBounds() async {
         let (vm, _) = makeViewModel()
@@ -323,4 +386,20 @@ extension WatchWorkoutViewModelTests {
         #expect(saved.first?.exercises[0].sets[0].isFullyCompleted == true)
         vm.stopRestTimer()
     }
+}
+
+@MainActor
+private final class TestWatchSessionManager: WatchWorkoutSessionManager {
+    var heartRate: Double = 0
+    var activeCalories: Double = 0
+    var elapsedTime: TimeInterval = 0
+    var isSessionActive = false
+    var finishedWorkoutUUID: UUID?
+
+    func requestAuthorization() async throws {}
+    func startWorkoutSession() async throws { isSessionActive = true }
+    func pauseWorkoutSession() {}
+    func resumeWorkoutSession() {}
+    func endWorkoutSession() async throws { isSessionActive = false }
+    func discardWorkoutSession() async { isSessionActive = false }
 }

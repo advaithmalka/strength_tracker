@@ -186,23 +186,51 @@ struct WatchActiveWorkoutView: View {
         ScrollView {
             VStack(spacing: 7) {
                 #if canImport(HealthKit) && os(watchOS)
-                WatchMetricsView(heartRate: viewModel.heartRate,
-                                 activeCalories: viewModel.activeCalories,
-                                 elapsedTime: viewModel.healthKitElapsedTime)
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    WatchMetricsView(heartRate: viewModel.heartRate,
+                                     activeCalories: viewModel.activeCalories,
+                                     elapsedTime: max(0, viewModel.elapsedTime))
+                }
                 #endif
 
                 if let current = viewModel.currentExercise {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(current.exercise.name)
+                        Button { selectedPage = 2 } label: {
+                            HStack(spacing: 4) {
+                                Text(current.exercise.name)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
                             .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(primaryYellow)
-                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Choose exercise")
                         Text("EXERCISE \(viewModel.currentExerciseIndex + 1) OF \(workout.exercises.count)")
                             .font(.system(size: 10, weight: .bold))
                             .tracking(1)
                             .foregroundStyle(secondaryText)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if viewModel.canRecordDeveloperMotion {
+                        Button {
+                            if viewModel.isDeveloperRecording { viewModel.stopDeveloperRecording() }
+                            else { viewModel.startDeveloperRecording() }
+                        } label: {
+                            Label(viewModel.isDeveloperRecording ? "STOP RECORDING" : "RECORD EXERCISE",
+                                  systemImage: viewModel.isDeveloperRecording ? "stop.circle.fill" : "record.circle")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(viewModel.isDeveloperRecording ? .red : primaryYellow)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled((viewModel.isPaused || viewModel.isResting ||
+                                   viewModel.isCollectingSet || viewModel.isReviewingSet) &&
+                                  !viewModel.isDeveloperRecording)
+                    }
 
                     setCard
 
@@ -340,7 +368,7 @@ struct WatchActiveWorkoutView: View {
                 ForEach(Array(workout.exercises.enumerated()), id: \.element.id) { index, item in
                     Button {
                         viewModel.selectExercise(at: index)
-                        if viewModel.currentExerciseIndex == index { selectedPage = 1 }
+                        selectedPage = 1
                     } label: {
                         HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 6) {

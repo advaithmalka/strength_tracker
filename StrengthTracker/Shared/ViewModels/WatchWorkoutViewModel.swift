@@ -38,6 +38,7 @@ public final class WatchWorkoutViewModel {
     // Motion periods work for every selected exercise. Rep counting is per exercise.
     public var isCollectingSet = false
     public var isReviewingSet = false
+    public var isDeveloperRecording = false
     public var detectedRepCount = 0
     public var reviewDetectedReps: Int? { detector == nil ? nil : detectedRepCount }
     public var canDetectCurrentExercise: Bool { detector != nil && motionManager.isAvailable }
@@ -236,6 +237,10 @@ public final class WatchWorkoutViewModel {
               sample.exerciseID == currentExercise?.exercise.id else { return }
         preRoll.append(sample)
         if preRoll.count > 100 { preRoll.removeFirst(preRoll.count - 100) }
+        if isDeveloperRecording {
+            motionRecording.append(sample)
+            return
+        }
         if isCollectingSet { motionRecording.append(sample) }
         switch periodDetector.process(sample) {
         case .started:
@@ -281,9 +286,11 @@ public final class WatchWorkoutViewModel {
         detectedRepCount = 0
         lastSetActivityAt = nil
         setInactivityTimer?.invalidate()
-        motionRecording.begin(exerciseID: exercise.id, exerciseName: exercise.name,
-                              wristSide: .left, detectorVersion: detector?.version ?? "period-only-1",
-                              preRoll: preRoll)
+        if !isDeveloperRecording {
+            motionRecording.begin(exerciseID: exercise.id, exerciseName: exercise.name,
+                                  wristSide: .left, detectorVersion: detector?.version ?? "period-only-1",
+                                  preRoll: preRoll)
+        }
         publishLiveState()
     }
 
@@ -299,7 +306,9 @@ public final class WatchWorkoutViewModel {
     }
 
     private func resetSetAttempt(finalReps: Int) {
-        _ = motionRecording.finish(detectedReps: detectedRepCount, finalReps: finalReps)
+        if !isDeveloperRecording {
+            _ = motionRecording.finish(detectedReps: detectedRepCount, finalReps: finalReps)
+        }
         setInactivityTimer?.invalidate()
         setInactivityTimer = nil
         lastSetActivityAt = nil
@@ -518,14 +527,63 @@ public final class WatchWorkoutViewModel {
     }
 
     public func selectExercise(at index: Int) {
-        guard let workout = activeWorkout, workout.exercises.indices.contains(index),
-              !isCollectingSet, !isReviewingSet else { return }
+        guard let workout = activeWorkout, workout.exercises.indices.contains(index) else { return }
+        guard index != currentExerciseIndex else { return }
+        discardDeveloperRecording()
+        if isCollectingSet || isReviewingSet {
+            motionRecording.discard()
+            isDeveloperRecording = false
+            resetSetAttempt(finalReps: 0)
+        }
         currentExerciseIndex = index
         viewingSetIndex = nil
         pendingSetType = .normal
         saveSessionState()
         configureMotionForCurrentExercise()
         publishLiveState()
+    }
+
+    public var canRecordDeveloperMotion: Bool {
+        #if DEBUG
+        return userPreferencesService?.debugMotionRecordingEnabled
+            ?? UserDefaults.standard.bool(forKey: "debugMotionRecordingEnabled")
+        #else
+        return false
+        #endif
+    }
+
+    public func startDeveloperRecording() {
+        guard canRecordDeveloperMotion, isActive, !isPaused, !isResting,
+              !isCollectingSet, !isReviewingSet,
+              !isDeveloperRecording, let exercise = currentExercise?.exercise else { return }
+        motionRecording.begin(exerciseID: exercise.id, exerciseName: exercise.name,
+                              wristSide: .left, detectorVersion: "manual-1", preRoll: preRoll)
+        setAttemptStartedAt = Date()
+        detectedRepCount = 0
+        periodDetector.reset()
+        detector?.reset()
+        isDeveloperRecording = true
+    }
+
+    public func stopDeveloperRecording() {
+        guard isDeveloperRecording else { return }
+        isDeveloperRecording = false
+        isReviewingSet = true
+        motionManager.stop()
+        preRoll = []
+        periodDetector.reset()
+        detector?.reset()
+        publishLiveState()
+    }
+
+    private func discardDeveloperRecording() {
+        guard isDeveloperRecording else { return }
+        isDeveloperRecording = false
+        motionRecording.discard()
+        setAttemptStartedAt = nil
+        preRoll = []
+        periodDetector.reset()
+        detector?.reset()
     }
 
     public var restTimerText: String {
@@ -743,6 +801,10 @@ public final class WatchWorkoutViewModel {
             resetSetAttempt(finalReps: reps ?? 0)
             viewingSetIndex = nil; pendingSetType = .normal
             if !wasComplete { startRestTimer(seconds: exercise.restTimerSeconds) }
+            if !wasComplete, currentExercisePlannedSetsComplete,
+               currentExerciseIndex < workout.exercises.count - 1 {
+                nextExercise()
+            }
             if !isResting {
                 configureMotionForCurrentExercise()
                 publishLiveState()
@@ -817,6 +879,9 @@ public final class WatchWorkoutViewModel {
         let exercise = workout.exercises[currentExerciseIndex]
         print("[WatchVM] logSet → startRestTimer (exercise=\(exercise.exercise.name), restOverride=\(String(describing: exercise.restTimerSeconds)))")
         startRestTimer(seconds: exercise.restTimerSeconds)
+        if currentExercisePlannedSetsComplete, currentExerciseIndex < workout.exercises.count - 1 {
+            nextExercise()
+        }
         if !isResting {
             configureMotionForCurrentExercise()
             publishLiveState()
@@ -862,6 +927,7 @@ public final class WatchWorkoutViewModel {
 
         motionManager.stop()
         setInactivityTimer?.invalidate()
+        discardDeveloperRecording()
         motionRecording.discard()
         isCollectingSet = false
         isReviewingSet = false
@@ -923,6 +989,7 @@ public final class WatchWorkoutViewModel {
 
         motionManager.stop()
         setInactivityTimer?.invalidate()
+        discardDeveloperRecording()
         motionRecording.discard()
         isCollectingSet = false
         isReviewingSet = false
@@ -948,26 +1015,11 @@ public final class WatchWorkoutViewModel {
     // MARK: - Navigation
 
     public func nextExercise() {
-        guard let workout = activeWorkout, !isCollectingSet, !isReviewingSet else { return }
-        if currentExerciseIndex < workout.exercises.count - 1 {
-            viewingSetIndex = nil
-            pendingSetType = .normal
-            currentExerciseIndex += 1
-            saveSessionState()
-            configureMotionForCurrentExercise()
-            publishLiveState()
-        }
+        selectExercise(at: currentExerciseIndex + 1)
     }
 
     public func previousExercise() {
-        if currentExerciseIndex > 0, !isCollectingSet, !isReviewingSet {
-            viewingSetIndex = nil
-            pendingSetType = .normal
-            currentExerciseIndex -= 1
-            saveSessionState()
-            configureMotionForCurrentExercise()
-            publishLiveState()
-        }
+        selectExercise(at: currentExerciseIndex - 1)
     }
 
     // MARK: - Set Navigation
