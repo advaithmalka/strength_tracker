@@ -273,8 +273,8 @@ struct SettingsView: View {
 
                 #if DEBUG
                 Section("Developer") {
-                    Toggle("Record labeled Watch motion", isOn: $preferencesService.debugMotionRecordingEnabled)
-                    Text("Recordings stay on the Watch and include the selected exercise and corrected rep count.")
+                    Toggle("Collect ML training data", isOn: $preferencesService.debugMotionRecordingEnabled)
+                    Text("Each reviewed set includes its exercise label, corrected rep count, workout and set IDs, and raw Watch motion. Recordings automatically sync to Files → On My iPhone → OneRep → MLTrainingData.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

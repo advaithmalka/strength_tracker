@@ -37,7 +37,7 @@ struct WatchSetInputView: View {
         self.weightUnit = prefs.weightUnit
     }
 
-    private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
+    private let primaryBlue = Color(red: 0.149, green: 0.475, blue: 1.000)
     private let cardBackground = Color.white.opacity(0.1)
     private let labelColor = Color.white.opacity(0.75)
     private let secondaryText = Color.white.opacity(0.6)
@@ -126,7 +126,7 @@ struct WatchSetInputView: View {
                     .foregroundStyle(.black)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 7)
-                    .background(primaryYellow)
+                    .background(primaryBlue)
                     .clipShape(Capsule())
                 }
             .buttonStyle(.plain)
@@ -178,7 +178,7 @@ struct WatchSetInputView: View {
                     Text(value)
                         .font(.system(size: 32, weight: .bold))
                         .monospacedDigit()
-                        .foregroundStyle(isFocused ? primaryYellow : .white)
+                        .foregroundStyle(isFocused ? primaryBlue : .white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                     Text(label.uppercased())

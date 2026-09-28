@@ -20,7 +20,8 @@ struct WatchActiveWorkoutView: View {
         self._exerciseListViewModel = State(initialValue: exerciseListViewModel)
     }
 
-    private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
+    private let primaryBlue = Color(red: 0.149, green: 0.475, blue: 1.000)
+    private let restTimerYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
     private let secondaryText = Color.white.opacity(0.6)
     private let weightUnit = UserPreferencesService().weightUnit
 
@@ -99,7 +100,7 @@ struct WatchActiveWorkoutView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                actionButton("Add", icon: "plus", color: primaryYellow, darkText: true) {
+                actionButton("Add", icon: "plus", color: primaryBlue, darkText: true) {
                     showExercisePicker = true
                 }
                 actionButton("Timer", icon: "timer", color: .white.opacity(0.17)) {
@@ -114,7 +115,7 @@ struct WatchActiveWorkoutView: View {
                 }
                 actionButton(viewModel.isPaused ? "Resume" : "Pause",
                              icon: viewModel.isPaused ? "play.fill" : "pause.fill",
-                             color: primaryYellow.opacity(0.28)) {
+                             color: primaryBlue.opacity(0.28)) {
                     if viewModel.isPaused { viewModel.resumeWorkout() }
                     else { viewModel.pauseWorkout() }
                 }
@@ -173,11 +174,11 @@ struct WatchActiveWorkoutView: View {
             .disabled(viewModel.isPaused)
             .accessibilityLabel("Skip rest")
         }
-        .foregroundStyle(primaryYellow)
+        .foregroundStyle(restTimerYellow)
         .padding(.leading, 10)
         .padding(.trailing, 5)
         .padding(.vertical, 4)
-        .background(primaryYellow.opacity(0.12))
+        .background(restTimerYellow.opacity(0.12))
         .clipShape(Capsule())
         .padding(.horizontal, 8)
     }
@@ -203,7 +204,7 @@ struct WatchActiveWorkoutView: View {
                                     .font(.system(size: 10, weight: .bold))
                             }
                             .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(primaryYellow)
+                            .foregroundStyle(primaryBlue)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Choose exercise")
@@ -222,13 +223,12 @@ struct WatchActiveWorkoutView: View {
                             Label(viewModel.isDeveloperRecording ? "STOP RECORDING" : "RECORD EXERCISE",
                                   systemImage: viewModel.isDeveloperRecording ? "stop.circle.fill" : "record.circle")
                                 .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(viewModel.isDeveloperRecording ? .red : primaryYellow)
+                                .foregroundStyle(viewModel.isDeveloperRecording ? .red : primaryBlue)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
-                        .disabled((viewModel.isPaused || viewModel.isResting ||
-                                   viewModel.isCollectingSet || viewModel.isReviewingSet) &&
+                        .disabled((viewModel.isPaused || viewModel.isResting) &&
                                   !viewModel.isDeveloperRecording)
                     }
 
@@ -283,7 +283,7 @@ struct WatchActiveWorkoutView: View {
                 } label: {
                     Text(viewModel.currentSetType == .normal ? "NORMAL" : viewModel.currentSetType.rawValue.uppercased())
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(primaryYellow)
+                        .foregroundStyle(primaryBlue)
                 }
                 .buttonStyle(.plain)
             }
@@ -331,7 +331,7 @@ struct WatchActiveWorkoutView: View {
                 .foregroundStyle(.black)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 7)
-                .background(primaryYellow)
+                .background(primaryBlue)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -382,7 +382,7 @@ struct WatchActiveWorkoutView: View {
                             Spacer(minLength: 2)
                             if index == viewModel.currentExerciseIndex {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(primaryYellow)
+                                    .foregroundStyle(primaryBlue)
                             }
                         }
                         .foregroundStyle(.white)

@@ -9,5 +9,6 @@ struct StrengthTrackerWidgetBundle: WidgetBundle {
         TrainingHubWidget()
         StreakAccessoryWidget()
         RestTimerLiveActivity()
+        WatchWorkoutLiveActivity()
     }
 }

@@ -41,11 +41,13 @@ class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 @main
 struct StrengthTrackeriOSApp: App {
     let container: AppContainer
+    private let watchWorkoutLiveActivityService: WatchWorkoutLiveActivityService
     private let notificationDelegate = AppNotificationDelegate()
 
     init() {
         do {
             container = try AppContainer()
+            watchWorkoutLiveActivityService = WatchWorkoutLiveActivityService()
 
             container.exerciseSeeder.startSeeding()
             container.templateSeedService.startSeeding()
@@ -107,6 +109,7 @@ struct StrengthTrackeriOSApp: App {
 
             // Wire up live Watch workout mirror (Fix 6)
             let workoutVM = container.workoutViewModel
+            let watchActivity = watchWorkoutLiveActivityService
             container.connectivityManager.onWatchWorkoutState = { state in
                 Task { @MainActor in
                     if let previous = workoutVM.watchLiveState,
@@ -114,6 +117,7 @@ struct StrengthTrackeriOSApp: App {
                        previous.revision >= state.revision { return }
                     workoutVM.watchLiveState = state
                     workoutVM.watchActiveWorkout = state.workout
+                    await watchActivity.apply(state)
                 }
             }
             container.connectivityManager.onWatchWorkoutSnapshot = { workout in
@@ -131,6 +135,8 @@ struct StrengthTrackeriOSApp: App {
             container.connectivityManager.onWatchWorkoutEnded = {
                 Task { @MainActor in
                     workoutVM.watchActiveWorkout = nil
+                    workoutVM.watchLiveState = nil
+                    await watchActivity.endAll()
                 }
             }
 
@@ -150,7 +156,10 @@ struct StrengthTrackeriOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentViewWrapper(container: container)
+            ContentViewWrapper(
+                container: container,
+                watchWorkoutLiveActivityService: watchWorkoutLiveActivityService
+            )
         }
         .modelContainer(container.modelContainer)
         .environment(container.bodyWeightProvider)
@@ -162,11 +171,16 @@ struct StrengthTrackeriOSApp: App {
 
 struct ContentViewWrapper: View {
     let container: AppContainer
+    let watchWorkoutLiveActivityService: WatchWorkoutLiveActivityService
     @Environment(\.scenePhase) private var scenePhase
     @State private var didRestore: Bool
 
-    init(container: AppContainer) {
+    init(
+        container: AppContainer,
+        watchWorkoutLiveActivityService: WatchWorkoutLiveActivityService
+    ) {
         self.container = container
+        self.watchWorkoutLiveActivityService = watchWorkoutLiveActivityService
         // Skip the gate when no active workout is pending — normal launches stay instant.
         // When a workout is pending (cold relaunch during a rest timer), gate the first
         // frame on `restoreActiveWorkout()` so we never momentarily show Dashboard.
@@ -227,6 +241,9 @@ struct ContentViewWrapper: View {
                 Task { @MainActor in
                     await container.bodyWeightProvider.refresh()
                     await refreshWidgetData()
+                    if let state = container.workoutViewModel.watchLiveState {
+                        await watchWorkoutLiveActivityService.apply(state)
+                    }
                 }
 
                 Task { @MainActor in await syncWatchCatalog(container) }

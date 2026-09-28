@@ -1,6 +1,11 @@
 import Foundation
 
 public struct LabeledMotionRecording: Codable, Sendable {
+    /// Optional so recordings written before schema version 2 remain decodable.
+    public let workoutID: UUID?
+    public let workoutExerciseID: UUID?
+    public let setID: UUID?
+    public let setNumber: Int?
     public let exerciseID: UUID
     public let exerciseName: String
     public let wristSide: WristSide
@@ -10,43 +15,64 @@ public struct LabeledMotionRecording: Codable, Sendable {
     public let samples: [MotionSample]
 }
 
-/// Explicit developer recording, kept on device for later detector evaluation.
-@MainActor
-public final class MotionRecording {
-    private var samples: [MotionSample] = []
-    private var exerciseID: UUID?
-    private var exerciseName = ""
-    private var detectorVersion = ""
-    private var wristSide: WristSide = .left
+public struct MotionRecordingContext: Sendable {
+    public let workoutID: UUID
+    public let workoutExerciseID: UUID
+    public let setID: UUID
+    public let setNumber: Int
+    public let exerciseID: UUID
+    public let exerciseName: String
+    public let wristSide: WristSide
+    public let detectorVersion: String
 
-    public init() {}
-
-    public func begin(exerciseID: UUID, exerciseName: String, wristSide: WristSide,
-                      detectorVersion: String, preRoll: [MotionSample]) {
-        #if DEBUG
-        guard UserDefaults.standard.bool(forKey: "debugMotionRecordingEnabled") else { return }
+    public init(workoutID: UUID, workoutExerciseID: UUID, setID: UUID, setNumber: Int,
+                exerciseID: UUID, exerciseName: String, wristSide: WristSide,
+                detectorVersion: String) {
+        self.workoutID = workoutID
+        self.workoutExerciseID = workoutExerciseID
+        self.setID = setID
+        self.setNumber = setNumber
         self.exerciseID = exerciseID
         self.exerciseName = exerciseName
         self.wristSide = wristSide
         self.detectorVersion = detectorVersion
+    }
+}
+
+/// Explicit developer recording, kept on device for later detector evaluation.
+@MainActor
+public final class MotionRecording {
+    private var samples: [MotionSample] = []
+    private var context: MotionRecordingContext?
+
+    public init() {}
+
+    public func begin(context: MotionRecordingContext, preRoll: [MotionSample]) {
+        #if DEBUG
+        guard UserDefaults.standard.bool(forKey: "debugMotionRecordingEnabled") else { return }
+        self.context = context
         self.samples = preRoll
         #endif
     }
 
     public func append(_ sample: MotionSample) {
-        guard exerciseID != nil, samples.count < 30_000 else { return }
+        guard context != nil, samples.count < 30_000 else { return }
         samples.append(sample)
     }
 
     @discardableResult
     public func finish(detectedReps: Int, finalReps: Int) -> URL? {
-        defer { exerciseID = nil; samples = [] }
-        guard let exerciseID, !samples.isEmpty else { return nil }
+        defer { context = nil; samples = [] }
+        guard let context, !samples.isEmpty else { return nil }
         let recording = LabeledMotionRecording(
-            exerciseID: exerciseID,
-            exerciseName: exerciseName,
-            wristSide: wristSide,
-            detectorVersion: detectorVersion,
+            workoutID: context.workoutID,
+            workoutExerciseID: context.workoutExerciseID,
+            setID: context.setID,
+            setNumber: context.setNumber,
+            exerciseID: context.exerciseID,
+            exerciseName: context.exerciseName,
+            wristSide: context.wristSide,
+            detectorVersion: context.detectorVersion,
             detectedReps: detectedReps,
             finalReps: finalReps,
             samples: samples
@@ -65,7 +91,7 @@ public final class MotionRecording {
     }
 
     public func discard() {
-        exerciseID = nil
+        context = nil
         samples = []
     }
 }

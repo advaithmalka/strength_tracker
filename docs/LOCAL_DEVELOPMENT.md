@@ -87,5 +87,5 @@ A build can temporarily use several gigabytes of internal swap even though deriv
 
 - OneRep V1 behavior and the exercise list are in [ONE_REP_MVP.md](ONE_REP_MVP.md).
 - The Watch owns active sessions. It saves each confirmed set locally and transfers completed workouts through WatchConnectivity.
-- Motion recording is an opt-in developer setting. Recordings stay in the Watch app's `Documents/MotionRecordings` directory.
+- Motion recording is an opt-in developer setting. Each reviewed recording is queued for durable WatchConnectivity file transfer. The Watch retains the source until delivery succeeds; the iPhone validates and stores it in `Documents/MLTrainingData/MotionRecordings`, visible in Files under `On My iPhone/OneRep/MLTrainingData`.
 - Keep new work in focused Git commits so features can be inspected or rolled back individually.

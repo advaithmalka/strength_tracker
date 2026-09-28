@@ -440,7 +440,7 @@ struct AnalyticsHistoryView: View {
             Text(String(format: "Last displayed smoothed score: %.1f / 100", values[component])).font(.subheadline)
         }
         if observations.isEmpty { Text("No scored sessions in this range.") }
-        Text("Dots: session scores. Yellow: full-history smoothed score. Filtering dates does not restart the calculation. Four equal components; each new measured score carries 30% weight after the initial two-session average. Provisional sessions are omitted from the line when measured history exists.").font(.caption).foregroundStyle(STColors.textSecondary)
+        Text("Dots: session scores. Blue: full-history smoothed score. Filtering dates does not restart the calculation. Four equal components; each new measured score carries 30% weight after the initial two-session average. Provisional sessions are omitted from the line when measured history exists.").font(.caption).foregroundStyle(STColors.textSecondary)
     }
     @ViewBuilder private var loadChart: some View {
         let days = (load?.history ?? []).filter { $0.date >= Calendar.current.startOfDay(for: interval.start) && $0.date <= interval.end }

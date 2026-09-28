@@ -35,7 +35,7 @@ public final class WatchWorkoutViewModel {
     // Completion guard (prevents double-tap and provides loading state)
     public var isCompleting = false
 
-    // Motion periods work for every selected exercise. Rep counting is per exercise.
+    // Set collection is manual. Rep counting may run after the lifter starts a set.
     public var isCollectingSet = false
     public var isReviewingSet = false
     public var isDeveloperRecording = false
@@ -71,11 +71,9 @@ public final class WatchWorkoutViewModel {
     private let motionManager = MotionManager()
     private let motionRecording = MotionRecording()
     private var detector: (any RepDetector)?
-    private var periodDetector = ExercisePeriodDetector()
     private var preRoll: [MotionSample] = []
-    private var setInactivityTimer: Timer?
-    private var lastSetActivityAt: Date?
     private var setAttemptStartedAt: Date?
+    private var pendingMotionSetID: UUID?
     private var liveRevision: Int64 = 0
     private func sessionStateKey(for workoutID: UUID) -> String {
         "oneRep.watch.sessionState.\(workoutID.uuidString)"
@@ -222,7 +220,6 @@ public final class WatchWorkoutViewModel {
         motionManager.stop()
         motionManager.onSample = nil
         preRoll = []
-        periodDetector.reset()
         guard isActive, !isPaused, !isResting, let exercise = currentExercise?.exercise else {
             detector = nil
             return
@@ -241,40 +238,19 @@ public final class WatchWorkoutViewModel {
             motionRecording.append(sample)
             return
         }
-        if isCollectingSet { motionRecording.append(sample) }
-        switch periodDetector.process(sample) {
-        case .started:
-            if !isCollectingSet { beginSetAttempt() }
-            markSetActivity(at: sample.recordedAt)
-        case .activity:
-            if isCollectingSet, detector == nil { markSetActivity(at: sample.recordedAt) }
-        case nil:
-            break
-        }
+        // Motion must never start or end a set. The Watch controls own that state.
+        guard isCollectingSet else { return }
+        motionRecording.append(sample)
         guard var detector else { return }
         let repEvent = detector.process(sample)
         self.detector = detector
         switch repEvent {
         case .movementStarted:
-            if !isCollectingSet { beginSetAttempt() }
-            markSetActivity(at: sample.recordedAt)
+            break
         case .repCompleted:
-            if !isCollectingSet { beginSetAttempt() }
             detectedRepCount += 1
-            markSetActivity(at: sample.recordedAt)
         case nil:
             break
-        }
-    }
-
-    private func markSetActivity(at date: Date) {
-        lastSetActivityAt = date
-        guard setInactivityTimer == nil else { return }
-        setInactivityTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let last = self.lastSetActivityAt else { return }
-                if Date().timeIntervalSince(last) >= 5 { self.endSetAttempt() }
-            }
         }
     }
 
@@ -284,21 +260,40 @@ public final class WatchWorkoutViewModel {
         isCollectingSet = true
         setAttemptStartedAt = Date()
         detectedRepCount = 0
-        lastSetActivityAt = nil
-        setInactivityTimer?.invalidate()
         if !isDeveloperRecording {
-            motionRecording.begin(exerciseID: exercise.id, exerciseName: exercise.name,
-                                  wristSide: .left, detectorVersion: detector?.version ?? "period-only-1",
-                                  preRoll: preRoll)
+            beginMotionRecording(exercise: exercise,
+                                 detectorVersion: detector?.version ?? "period-only-1")
         }
         publishLiveState()
     }
 
+    private func beginMotionRecording(exercise: Exercise, detectorVersion: String) {
+        guard let workout = activeWorkout,
+              workout.exercises.indices.contains(currentExerciseIndex) else { return }
+        let workoutExercise = workout.exercises[currentExerciseIndex]
+        let set: (id: UUID, number: Int)
+        if let existing = workoutExercise.sets.first(where: { !$0.isFullyCompleted }) {
+            set = (existing.id, existing.order)
+        } else {
+            let id = pendingMotionSetID ?? UUID()
+            pendingMotionSetID = id
+            set = (id, workoutExercise.sets.count + 1)
+        }
+        let context = MotionRecordingContext(
+            workoutID: workout.id,
+            workoutExerciseID: workoutExercise.id,
+            setID: set.id,
+            setNumber: set.number,
+            exerciseID: exercise.id,
+            exerciseName: exercise.name,
+            wristSide: .left,
+            detectorVersion: detectorVersion
+        )
+        motionRecording.begin(context: context, preRoll: preRoll)
+    }
+
     public func endSetAttempt() {
         guard isCollectingSet, !isPaused else { return }
-        setInactivityTimer?.invalidate()
-        setInactivityTimer = nil
-        lastSetActivityAt = nil
         isCollectingSet = false
         isReviewingSet = true
         motionManager.stop()
@@ -307,17 +302,16 @@ public final class WatchWorkoutViewModel {
 
     private func resetSetAttempt(finalReps: Int) {
         if !isDeveloperRecording {
-            _ = motionRecording.finish(detectedReps: detectedRepCount, finalReps: finalReps)
+            if let url = motionRecording.finish(detectedReps: detectedRepCount, finalReps: finalReps) {
+                connectivityManager.transferMotionRecording(at: url)
+            }
         }
-        setInactivityTimer?.invalidate()
-        setInactivityTimer = nil
-        lastSetActivityAt = nil
         isCollectingSet = false
         isReviewingSet = false
         detectedRepCount = 0
         setAttemptStartedAt = nil
+        pendingMotionSetID = nil
         detector?.reset()
-        periodDetector.reset()
     }
 
     private func publishLiveState(ended: Bool = false) {
@@ -478,8 +472,6 @@ public final class WatchWorkoutViewModel {
         isPaused = true
         pausedAt = Date()
         motionManager.stop()
-        setInactivityTimer?.invalidate()
-        setInactivityTimer = nil
         if isResting {
             if let restStartDate {
                 restTimeRemaining = max(0, restDuration - Date().timeIntervalSince(restStartDate))
@@ -506,7 +498,6 @@ public final class WatchWorkoutViewModel {
             updateRestWidget(remaining: restTimeRemaining)
         } else {
             configureMotionForCurrentExercise()
-            if isCollectingSet { markSetActivity(at: Date()) }
         }
         publishLiveState()
     }
@@ -554,13 +545,20 @@ public final class WatchWorkoutViewModel {
 
     public func startDeveloperRecording() {
         guard canRecordDeveloperMotion, isActive, !isPaused, !isResting,
-              !isCollectingSet, !isReviewingSet,
               !isDeveloperRecording, let exercise = currentExercise?.exercise else { return }
-        motionRecording.begin(exerciseID: exercise.id, exerciseName: exercise.name,
-                              wristSide: .left, detectorVersion: "manual-1", preRoll: preRoll)
+        if isCollectingSet || isReviewingSet {
+            // The explicit developer control wins over a stale or unfinished set attempt.
+            motionRecording.discard()
+            isCollectingSet = false
+            isReviewingSet = false
+            detectedRepCount = 0
+            setAttemptStartedAt = nil
+            pendingMotionSetID = nil
+            configureMotionForCurrentExercise()
+        }
+        beginMotionRecording(exercise: exercise, detectorVersion: "manual-1")
         setAttemptStartedAt = Date()
         detectedRepCount = 0
-        periodDetector.reset()
         detector?.reset()
         isDeveloperRecording = true
     }
@@ -571,7 +569,6 @@ public final class WatchWorkoutViewModel {
         isReviewingSet = true
         motionManager.stop()
         preRoll = []
-        periodDetector.reset()
         detector?.reset()
         publishLiveState()
     }
@@ -581,8 +578,8 @@ public final class WatchWorkoutViewModel {
         isDeveloperRecording = false
         motionRecording.discard()
         setAttemptStartedAt = nil
+        pendingMotionSetID = nil
         preRoll = []
-        periodDetector.reset()
         detector?.reset()
     }
 
@@ -777,7 +774,7 @@ public final class WatchWorkoutViewModel {
         let exercise = workout.exercises[currentExerciseIndex]
         let index = viewingSetIndex ?? exercise.sets.firstIndex { !$0.isFullyCompleted } ?? exercise.sets.count
         if index == exercise.sets.count {
-            workout.exercises[currentExerciseIndex].sets.append(ExerciseSet(id: UUID(), order: index + 1,
+            workout.exercises[currentExerciseIndex].sets.append(ExerciseSet(id: pendingMotionSetID ?? UUID(), order: index + 1,
                 setType: pendingSetType, weight: weight.map { $0 / recording.sideWeightScale }, reps: reps, durationSeconds: nil, distanceMeters: nil,
                 rpe: nil, isCompleted: false, isPersonalRecord: false, completedAt: nil))
         }
@@ -844,7 +841,7 @@ public final class WatchWorkoutViewModel {
             // All pre-populated sets done (or none existed), append a new one
             let setOrder = workout.exercises[currentExerciseIndex].sets.count + 1
             var newSet = ExerciseSet(
-                id: UUID(),
+                id: pendingMotionSetID ?? UUID(),
                 order: setOrder,
                 setType: pendingSetType,
                 weight: weight,
@@ -926,7 +923,6 @@ public final class WatchWorkoutViewModel {
         }
 
         motionManager.stop()
-        setInactivityTimer?.invalidate()
         discardDeveloperRecording()
         motionRecording.discard()
         isCollectingSet = false
@@ -988,7 +984,6 @@ public final class WatchWorkoutViewModel {
         }
 
         motionManager.stop()
-        setInactivityTimer?.invalidate()
         discardDeveloperRecording()
         motionRecording.discard()
         isCollectingSet = false

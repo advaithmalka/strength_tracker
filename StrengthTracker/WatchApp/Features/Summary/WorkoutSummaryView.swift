@@ -15,7 +15,7 @@ struct WorkoutSummaryView: View {
         self._viewModel = State(initialValue: viewModel)
     }
 
-    private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
+    private let primaryBlue = Color(red: 0.149, green: 0.475, blue: 1.000)
     private let cardBackground = Color.white.opacity(0.1)
     private let secondaryText = Color.white.opacity(0.6)
     // Watch prefs sync from the phone into UserDefaults
@@ -91,7 +91,7 @@ struct WorkoutSummaryView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "note.text")
                             .font(.system(size: 10))
-                            .foregroundStyle(primaryYellow)
+                            .foregroundStyle(primaryBlue)
                         Text("Has notes")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(secondaryText)
@@ -100,7 +100,7 @@ struct WorkoutSummaryView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "note.text")
                             .font(.system(size: 10))
-                            .foregroundStyle(primaryYellow)
+                            .foregroundStyle(primaryBlue)
                         Text("Notes added")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(secondaryText)
@@ -135,7 +135,7 @@ struct WorkoutSummaryView: View {
                     .foregroundStyle(.black)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(viewModel.isCompleting ? primaryYellow.opacity(0.5) : primaryYellow)
+                    .background(viewModel.isCompleting ? primaryBlue.opacity(0.5) : primaryBlue)
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -174,7 +174,7 @@ struct WorkoutSummaryView: View {
         HStack {
             Image(systemName: icon)
                 .font(.system(size: 12))
-                .foregroundStyle(primaryYellow)
+                .foregroundStyle(primaryBlue)
                 .frame(width: 20)
 
             Text(label)

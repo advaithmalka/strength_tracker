@@ -99,7 +99,7 @@ private struct BarView: View {
     private func barColor(for score: Double) -> Color {
         switch score {
         case 80...:   return STColors.success   // green — excellent
-        case 60..<80: return STColors.primary   // gold — good
+        case 60..<80: return STColors.primary   // brand blue — good
         case 40..<60: return .orange            // needs work
         default:      return STColors.danger    // red — poor
         }

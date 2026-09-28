@@ -8,14 +8,14 @@ import StrengthTrackerShared
 enum WidgetColors {
     static let background = Color(red: 0.071, green: 0.071, blue: 0.071)
     static let surface = Color(white: 0.14)
-    static let accent = Color(red: 0.949, green: 0.800, blue: 0.051)
+    static let accent = Color(red: 0.149, green: 0.475, blue: 1.000)
     static let textPrimary = Color.white
     static let textSecondary = Color.gray
     static let textTertiary = Color(white: 0.45)
 
     static func highlightColor(_ name: String) -> Color {
         switch name {
-        case "yellow": return accent
+        case "yellow": return .yellow
         case "orange": return .orange
         case "green": return .green
         case "red": return .red

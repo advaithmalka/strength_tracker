@@ -24,6 +24,7 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
     public var onWatchWorkoutEnded: (() -> Void)?
     public var onWatchWorkoutState: ((WorkoutLiveState) -> Void)?
     public var onWorkoutControl: ((WorkoutLiveCommand) async -> WorkoutLiveCommandReply)?
+    public var onMotionRecordingReceived: ((URL) -> Void)?
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -116,6 +117,42 @@ public final class ConnectivityManager: NSObject, @unchecked Sendable {
             WCSession.default.transferUserInfo(message.asDictionary)
         } catch {
             print("ConnectivityManager: Failed to send workout - \(error)")
+        }
+        #endif
+    }
+
+    /// Queue a labeled motion recording for durable Watch -> iPhone delivery.
+    /// The source file remains on Watch until WatchConnectivity confirms transfer.
+    public func transferMotionRecording(at url: URL) {
+        #if os(watchOS) && canImport(WatchConnectivity)
+        guard WCSession.default.activationState == .activated else { return }
+        let recordingID = url.deletingPathExtension().lastPathComponent
+        guard !WCSession.default.outstandingFileTransfers.contains(where: {
+            $0.file.metadata?["recordingID"] as? String == recordingID
+        }) else { return }
+        WCSession.default.transferFile(url, metadata: [
+            "type": "labeledMotionRecording",
+            "schemaVersion": 2,
+            "recordingID": recordingID
+        ])
+        #endif
+    }
+
+    /// Resume exports for recordings created while the phone or session was unavailable.
+    public func transferPendingMotionRecordings() {
+        #if os(watchOS) && canImport(WatchConnectivity)
+        guard WCSession.default.activationState == .activated,
+              let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        let directory = documents.appendingPathComponent("MotionRecordings", isDirectory: true)
+        let urls = (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        for url in urls where url.pathExtension.lowercased() == "json" {
+            transferMotionRecording(at: url)
         }
         #endif
     }
@@ -341,6 +378,9 @@ extension ConnectivityManager: WCSessionDelegate {
             self.isReachable = reachable
             if activated {
                 self.flushWorkoutLiveState()
+                #if os(watchOS)
+                self.transferPendingMotionRecordings()
+                #endif
                 self.onSessionReady?()
             }
         }
@@ -448,6 +488,50 @@ extension ConnectivityManager: WCSessionDelegate {
             }
         }
     }
+
+    #if os(iOS)
+    /// Persist received recordings immediately because WCSessionFile URLs are temporary.
+    nonisolated public func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard file.metadata?["type"] as? String == "labeledMotionRecording" else { return }
+        do {
+            let data = try Data(contentsOf: file.fileURL)
+            _ = try JSONDecoder().decode(LabeledMotionRecording.self, from: data)
+
+            let suppliedID = file.metadata?["recordingID"] as? String
+            let recordingID = suppliedID?.range(
+                of: "^[A-Za-z0-9-]+$",
+                options: .regularExpression
+            ) == nil ? UUID().uuidString : suppliedID!
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let directory = documents
+                .appendingPathComponent("MLTrainingData", isDirectory: true)
+                .appendingPathComponent("MotionRecordings", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let destination = directory.appendingPathComponent("\(recordingID).json")
+            try data.write(to: destination, options: .atomic)
+
+            Task { @MainActor in
+                self.lastSyncDate = Date()
+                self.onMotionRecordingReceived?(destination)
+            }
+        } catch {
+            print("ConnectivityManager: Rejected motion recording transfer - \(error)")
+        }
+    }
+    #endif
+
+    #if os(watchOS)
+    nonisolated public func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer,
+                                    error: (any Error)?) {
+        guard error == nil,
+              fileTransfer.file.metadata?["type"] as? String == "labeledMotionRecording" else { return }
+        do {
+            try FileManager.default.removeItem(at: fileTransfer.file.fileURL)
+        } catch {
+            print("ConnectivityManager: Could not remove exported motion recording - \(error)")
+        }
+    }
+    #endif
 
     // Receive real-time messages (workout snapshots, started, ended)
     nonisolated public func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {

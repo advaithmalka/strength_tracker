@@ -7,7 +7,7 @@ struct WorkoutListView: View {
     @State private var exerciseListViewModel: ExerciseListViewModel
     @State private var showExercisePicker = false
 
-    private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
+    private let primaryBlue = Color(red: 0.149, green: 0.475, blue: 1.000)
 
     init(
         workoutViewModel: WatchWorkoutViewModel,
@@ -29,7 +29,7 @@ struct WorkoutListView: View {
                     } label: {
                         HStack {
                             Image(systemName: "bolt.fill")
-                                .foregroundStyle(primaryYellow)
+                                .foregroundStyle(primaryBlue)
                             Text("Quick Start")
                                 .font(.headline)
                         }

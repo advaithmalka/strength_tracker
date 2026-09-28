@@ -31,6 +31,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>OneRep reads your workout data to display history and progress.</string>
 	<key>NSHealthUpdateUsageDescription</key>
@@ -38,6 +40,8 @@
 	<key>NSMotionUsageDescription</key>
 	<string>OneRep uses Watch movement to find set periods and count supported exercises.</string>
 	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>

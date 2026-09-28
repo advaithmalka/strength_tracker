@@ -1,6 +1,6 @@
 import Foundation
 
-public enum WorkoutLivePhase: String, Codable, Sendable {
+public enum WorkoutLivePhase: String, Codable, Hashable, Sendable {
     case ready, lifting, review, resting, ended
 }
 

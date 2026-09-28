@@ -8,7 +8,7 @@ struct WatchExercisePickerView: View {
     let onStartWorkout: ([Exercise]) -> Void
     let actionTitle: String
 
-    private let primaryYellow = Color(red: 0.949, green: 0.800, blue: 0.051)
+    private let primaryBlue = Color(red: 0.149, green: 0.475, blue: 1.000)
 
     init(exerciseListViewModel: ExerciseListViewModel, actionTitle: String = "START", onStartWorkout: @escaping ([Exercise]) -> Void) {
         self._exerciseListViewModel = State(initialValue: exerciseListViewModel)
@@ -59,7 +59,7 @@ struct WatchExercisePickerView: View {
 
                                 if selectedExercises.contains(where: { $0.id == exercise.id }) {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(primaryYellow)
+                                        .foregroundStyle(primaryBlue)
                                         .font(.system(size: 18))
                                 } else {
                                     Image(systemName: "circle")
@@ -83,7 +83,7 @@ struct WatchExercisePickerView: View {
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
-                            .background(primaryYellow)
+                            .background(primaryBlue)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -115,7 +115,7 @@ struct WatchExercisePickerView: View {
                 .font(.system(size: 11, weight: .medium))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(isSelected ? primaryYellow : Color.white.opacity(0.12))
+                .background(isSelected ? primaryBlue : Color.white.opacity(0.12))
                 .foregroundStyle(isSelected ? .black : .white)
                 .clipShape(Capsule())
         }
